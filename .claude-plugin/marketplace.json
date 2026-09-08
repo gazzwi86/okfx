@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "gazzwi86",
+  "description": "Claude Code plugins by gazzwi86.",
+  "owner": { "name": "Gareth Williams" },
+  "plugins": [
+    {
+      "name": "okfx",
+      "source": "./",
+      "description": "Concept inheritance, content integrity and declarative validation for OKF v0.2 bundles.",
+      "category": "documentation",
+      "keywords": ["okf", "okfx", "knowledge", "markdown", "agents"],
+      "license": "Apache-2.0"
+    }
+  ]
+}

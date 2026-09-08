@@ -1,0 +1,17 @@
+OKFX
+Copyright 2026 Gareth Williams
+
+This product includes software developed as an extension to the Open Knowledge
+Format (OKF), published by Google Cloud at
+https://github.com/GoogleCloudPlatform/knowledge-catalog and licensed under the
+Apache License, Version 2.0.
+
+OKFX is an independent project. It is not affiliated with, sponsored by, or
+endorsed by Google LLC. No Google or OKF trademarks or logos are used.
+
+The document parser in src/okfx/document.py follows the conventions of
+reference_agent/bundle/document.py from that project, including its SafeLoader
+subclass that strips PyYAML's YAML 1.1 timestamp resolver.
+
+The test suite installs the OKF reference implementation from that repository to
+check conformance; it is not vendored or redistributed here.

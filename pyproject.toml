@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "okfx"
+version = "0.1.0"
+description = "Concept inheritance, content integrity and declarative validation for OKF v0.2 bundles"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "Gareth Williams" }]
+keywords = ["okf", "knowledge", "agents", "provenance"]
+dependencies = ["pyyaml>=6.0"]
+
+[project.scripts]
+okfx = "okfx.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/gazzwi86/okfx"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+# The conformance test runs the OKF reference implementation's own loader. It is
+# installed separately rather than as a dependency group, because it must go in
+# with --no-deps: `reference_agent.bundle.document` needs only pyyaml, while the
+# package itself declares google-adk and the BigQuery client. See CONTRIBUTING.md.
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/okfx"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E501 is left to the formatter: a long test fixture string is not worth wrapping.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]

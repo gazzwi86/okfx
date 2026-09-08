@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync
+      # The OKF reference implementation, for the conformance tests. --no-deps:
+      # its loader needs only PyYAML, not google-adk.
+      - run: >
+          uv pip install --no-deps
+          "reference-agent @ git+https://github.com/GoogleCloudPlatform/knowledge-catalog@8cf3abaf1ee3d53a12f981cc0ed83d6ffec775e1#subdirectory=okf"
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - env:
+          OKFX_REQUIRE_REFERENCE: "1"
+        run: uv run pytest -q
+      - run: uv run okfx check examples/acme --allow-validators

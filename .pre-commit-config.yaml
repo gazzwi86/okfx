@@ -1,0 +1,15 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: okfx-check
+        name: okfx check
+        entry: uv run okfx check --skip-validators
+        language: system
+        files: \.md$
+        exclude: (^|/)(index|log)\.md$

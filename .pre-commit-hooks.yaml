@@ -1,0 +1,7 @@
+- id: okfx-check
+  name: okfx check
+  description: Check OKF conformance, integrity seals and extends chains.
+  entry: okfx check --skip-validators
+  language: python
+  files: \.md$
+  exclude: (^|/)(index|log)\.md$

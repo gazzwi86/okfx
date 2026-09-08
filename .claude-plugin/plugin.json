@@ -1,0 +1,14 @@
+{
+  "name": "okfx",
+  "displayName": "OKFX",
+  "version": "0.1.0",
+  "description": "Author and check OKF bundles that use inheritance (extends), integrity seals, and declarative validation.",
+  "author": {
+    "name": "Gareth Williams",
+    "url": "https://github.com/gazzwi86"
+  },
+  "homepage": "https://github.com/gazzwi86/okfx",
+  "repository": "https://github.com/gazzwi86/okfx",
+  "license": "Apache-2.0",
+  "keywords": ["okf", "okfx", "knowledge", "markdown", "provenance", "agents"]
+}
