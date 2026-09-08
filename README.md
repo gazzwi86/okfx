@@ -42,10 +42,10 @@ Three optional frontmatter families, specified in [`EXTENSION.md`](EXTENSION.md)
 
 ## Install
 
-Python 3.11+.
+Python 3.11+. Not yet on PyPI:
 
 ```shell
-uv tool install okfx        # or: uv add okfx / pip install okfx
+uv tool install git+https://github.com/gazzwi86/okfx
 ```
 
 ## Use
@@ -66,8 +66,8 @@ validators - and exits non-zero on the first thing that fails. As a library:
 from okfx import Document, resolve, seal, verify
 
 doc = Document.load("examples/acme/projects/ledger.md")
-resolved = resolve(doc)          # merged, with resolved_from recorded
-verify(doc)                      # raises IntegrityError on a broken seal
+resolved = resolve(doc)  # merged, with resolved_from recorded
+verify(doc)  # raises IntegrityError on a broken seal
 ```
 
 ### Git hook
@@ -85,7 +85,15 @@ The hook runs `okfx check --skip-validators` over staged markdown: conformance,
 seals and `extends` resolution, with declared validators reported as unrun. Add
 `args: [--allow-validators]` to execute them.
 
+A staged file is checked only when it sits inside a bundle, meaning some
+ancestor directory holds an `index.md`. A repository's own `README.md` is not a
+concept and is not held to OKF §11. A directory named on the command line -
+`okfx check .okf/`, as CI does - is taken to be a bundle whether or not it has
+an `index.md`.
+
 ### Claude Code plugin
+
+From this repository, once it is public:
 
 ```shell
 /plugin marketplace add gazzwi86/okfx
@@ -149,10 +157,8 @@ Where one of these solves a problem better, use it:
   If you want typed relationships, a shared vocabulary or SPARQL, LOKF is the
   answer and OKFX is not: `extends` is a single untyped derivation edge, not a
   relationship model.
-- **Tur EP-0120** - maps agent memory onto OKF directories while keeping Merkle
-  seals over the tree. Tree-level sealing answers "has anything in this corpus
-  changed"; OKFX's per-document seal answers "may this specific document be
-  inherited from", which is what pinning needs.
+<!-- TODO: Tur EP-0120 (memory mapped onto OKF directories, Merkle seals over the
+     tree). No public source found; add the bullet once there is a link to cite. -->
 - **[signed-okf](https://github.com/dynamicfeed/signed-okf)**
   ([#140](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/140))
   - a signed bundle manifest with a SHA-256 per file and an Ed25519 envelope.

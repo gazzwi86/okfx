@@ -25,6 +25,18 @@ def concept_paths(targets: list[Path]) -> list[Path]:
     return found
 
 
+def in_bundle(path: Path) -> bool:
+    """Whether a markdown file sits inside an OKF bundle.
+
+    A bundle root is marked by an `index.md` (OKF §8). `check` runs over
+    whatever a CI job or a git hook hands it, which in a normal repository
+    includes README.md and the docs; those are not concepts and holding them to
+    §11 would make the hook useless.
+    """
+    resolved = path.resolve()
+    return any((parent / "index.md").is_file() for parent in resolved.parents)
+
+
 def _cmd_seal(args: argparse.Namespace) -> int:
     at = args.at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     for path in concept_paths([Path(p) for p in args.paths]):
@@ -87,16 +99,24 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 def _cmd_check(args: argparse.Namespace) -> int:
     targets = [Path(p) for p in args.paths] or [Path.cwd()]
     failures: list[str] = []
-    for path in concept_paths(targets):
+    # A directory named on the command line is taken to be a bundle. Files named
+    # individually - what a git hook passes - are checked only when they sit
+    # inside one, so a repository's README does not have to carry a `type`.
+    named_dirs = [t for t in targets if t.is_dir()]
+    candidates = concept_paths(targets)
+    checked = [p for p in candidates if in_bundle(p) or any(d in p.parents for d in named_dirs)]
+    skipped = len(candidates) - len(checked)
+    for path in checked:
         doc = Document.load(path)
         try:
             doc.validate_okf()
             if doc.frontmatter.get("integrity") is not None:
                 integrity.verify(doc)
             resolved = resolve(doc, root=bundle_root(path))
+            unrun = False
             if validation.declared(resolved) and not validation.allowed(args.allow_validators):
                 if args.skip_validators:
-                    print(f"skip {path}: validators declared, not run")
+                    unrun = True
                 else:
                     raise validation.ValidatorsRefused(
                         f"{path} declares validators. Pass --allow-validators to run them, "
@@ -111,7 +131,9 @@ def _cmd_check(args: argparse.Namespace) -> int:
             failures.append(str(e))
             print(f"FAIL {e}", file=sys.stderr)
         else:
-            print(f"ok   {path}")
+            print(f"ok   {path}{' (validators declared, not run)' if unrun else ''}")
+    if skipped:
+        print(f"     {skipped} file(s) skipped: no index.md above them, so not in a bundle")
     if failures:
         print(f"\n{len(failures)} failure(s)", file=sys.stderr)
         return 1
