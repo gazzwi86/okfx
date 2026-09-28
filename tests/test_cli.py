@@ -41,7 +41,17 @@ def test_seal_then_verify_round_trips(bundle: Path):
 
 def test_resolve_writes_to_a_file(example_bundle: Path, tmp_path: Path):
     out = tmp_path / "resolved.md"
-    assert main(["resolve", str(example_bundle / "projects" / "ledger.md"), "-o", str(out)]) == 0
+    assert (
+        main(
+            [
+                "resolve",
+                str(example_bundle / "projects" / "billing" / "churn-rate.md"),
+                "-o",
+                str(out),
+            ]
+        )
+        == 0
+    )
     assert "resolved_from" in out.read_text()
 
 
@@ -59,7 +69,16 @@ def test_check_refuses_a_chain_whose_base_seal_is_broken(bundle: Path):
 
 def test_check_resolves_a_chain_when_given_a_single_file(example_bundle: Path):
     """The path a git hook takes: one staged file, not the bundle directory."""
-    assert main(["check", str(example_bundle / "projects" / "ledger.md"), "--skip-validators"]) == 0
+    assert (
+        main(
+            [
+                "check",
+                str(example_bundle / "projects" / "billing" / "churn-rate.md"),
+                "--skip-validators",
+            ]
+        )
+        == 0
+    )
 
 
 def test_check_skips_markdown_outside_a_bundle(tmp_path: Path):

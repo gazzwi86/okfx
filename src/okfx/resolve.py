@@ -44,6 +44,30 @@ def resolve_path(reference: str, doc_path: Path, root: Path) -> Path:
     return (doc_path.parent / reference).resolve()
 
 
+def concept_path(concept: str, root: Path) -> Path:
+    """Resolve an `extends.concept` id: bundle-relative, `.md` optional.
+
+    `metrics/churn-rate`, `/metrics/churn-rate` and `metrics/churn-rate.md` all
+    name the same file. A concept id is always read from the bundle root, never
+    relative to the overlay, so moving an overlay between directories does not
+    change which base it derives from.
+    """
+    if "://" in concept:
+        raise ResolveError(f"extends.concept must be a bundle-relative concept id: {concept}")
+    relative = concept.lstrip("/")
+    if not relative.endswith(".md"):
+        relative += ".md"
+    return (root / relative).resolve()
+
+
+def base_path(block: dict[str, Any], doc_path: Path, root: Path) -> Path:
+    """The file an `extends` block points at, by either spelling."""
+    concept = block.get("concept")
+    if concept:
+        return concept_path(str(concept), root)
+    return resolve_path(str(block["resource"]), doc_path, root)
+
+
 def deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     merged = dict(base)
     for key, value in overlay.items():
@@ -55,12 +79,17 @@ def deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def _extends_of(doc: Document) -> dict[str, Any] | None:
+def extends_of(doc: Document) -> dict[str, Any] | None:
     block = doc.frontmatter.get("extends")
     if block is None:
         return None
-    if not isinstance(block, dict) or not block.get("resource"):
-        raise ResolveError(f"{doc.path}: extends must be a mapping carrying a resource")
+    if not isinstance(block, dict):
+        raise ResolveError(f"{doc.path}: extends must be a mapping")
+    named = [key for key in ("concept", "resource") if block.get(key)]
+    if not named:
+        raise ResolveError(f"{doc.path}: extends must carry a concept or a resource")
+    if len(named) > 1:
+        raise ResolveError(f"{doc.path}: extends carries both concept and resource; use one")
     return block
 
 
@@ -75,30 +104,30 @@ def chain(doc: Document, root: Path | None = None) -> list[Document]:
     seen = [path]
     current, current_path = doc, path
     while True:
-        block = _extends_of(current)
+        block = extends_of(current)
         if block is None:
             break
-        base_path = resolve_path(str(block["resource"]), current_path, root)
-        if base_path in seen:
-            trail = " -> ".join(p.name for p in [*seen, base_path])
+        target = base_path(block, current_path, root)
+        if target in seen:
+            trail = " -> ".join(p.name for p in [*seen, target])
             raise ResolveError(f"circular extends chain: {trail}")
-        if not base_path.is_file():
-            raise ResolveError(f"{current_path}: extends target does not exist: {base_path}")
-        base = Document.load(base_path)
+        if not target.is_file():
+            raise ResolveError(f"{current_path}: extends target does not exist: {target}")
+        base = Document.load(target)
 
         actual = integrity.compute(base)
         pinned = block.get("integrity")
         if pinned is not None and str(pinned) != actual:
             raise ResolveError(
-                f"{current_path}: extends pin does not match {base_path.name} "
+                f"{current_path}: extends pin does not match {target.name} "
                 f"(pinned {str(pinned)[:12]}..., computed {actual[:12]}...)"
             )
         if base.frontmatter.get("integrity") is not None:
             integrity.verify(base)
 
         documents.append(base)
-        seen.append(base_path)
-        current, current_path = base, base_path
+        seen.append(target)
+        current, current_path = base, target
 
     documents.reverse()
     return documents

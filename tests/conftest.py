@@ -13,6 +13,18 @@ def example_bundle() -> Path:
 
 
 @pytest.fixture
+def example_overlay() -> Path:
+    """The article's EU overlay: one `extends` hop from the base metric."""
+    return EXAMPLE / "metrics" / "churn-rate.eu.md"
+
+
+@pytest.fixture
+def example_project() -> Path:
+    """The deepest concept in the example bundle: base -> region -> project."""
+    return EXAMPLE / "projects" / "billing" / "churn-rate.md"
+
+
+@pytest.fixture
 def bundle(tmp_path: Path) -> Path:
     """An empty bundle root: `index.md` is what marks the root (OKF §8)."""
     (tmp_path / "index.md").write_text("# Concepts\n", encoding="utf-8")

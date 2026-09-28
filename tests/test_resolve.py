@@ -155,13 +155,46 @@ def test_a_document_without_extends_is_returned_unchanged(bundle: Path):
     assert "resolved_from" not in resolved.frontmatter
 
 
-def test_the_example_bundle_resolves_three_levels(example_bundle: Path):
-    resolved = resolve(Document.load(example_bundle / "projects" / "ledger.md"))
-    assert resolved.frontmatter["retention"]["customer_records_days"] == 2555
-    assert resolved.frontmatter["retention"]["access_logs_days"] == 400
-    assert resolved.frontmatter["target_context"] == {
-        "org": "acme",
-        "domain": "finance",
-        "project": "ledger",
-    }
-    assert len(resolved.frontmatter["resolved_from"]) == 2
+def test_the_example_bundle_resolves_three_levels(example_project: Path):
+    resolved = resolve(Document.load(example_project))
+    assert resolved.frontmatter["rules"]["currency_default"] == "EUR"
+    assert resolved.frontmatter["rules"]["audit_threshold"] == 2500
+    assert resolved.frontmatter["title"] == "Churn Rate in the billing service"
+    assert resolved.frontmatter["target_context"] == {"region": "EU", "project": "billing"}
+    assert [entry["resource"] for entry in resolved.frontmatter["resolved_from"]] == [
+        "/metrics/churn-rate.md",
+        "/metrics/churn-rate.eu.md",
+    ]
+
+
+def test_a_concept_id_is_read_from_the_bundle_root_not_the_overlays_directory(bundle: Path):
+    """Moving an overlay between directories must not change which base it derives from."""
+    write(bundle / "metrics" / "churn-rate.md", "type: Metric", "# Definition\n\nBase.\n")
+    deep = write(
+        bundle / "projects" / "billing" / "eu.md",
+        "type: Metric\nextends: {concept: metrics/churn-rate}",
+    )
+    assert "Base." in resolve(Document.load(deep)).body
+
+
+def test_a_concept_id_accepts_a_leading_slash_and_an_explicit_extension(bundle: Path):
+    write(bundle / "metrics" / "churn-rate.md", "type: Metric", "# Definition\n\nBase.\n")
+    for spelling in ("metrics/churn-rate", "/metrics/churn-rate", "metrics/churn-rate.md"):
+        overlay = write(bundle / "o.md", f"type: Metric\nextends: {{concept: {spelling}}}")
+        assert "Base." in resolve(Document.load(overlay)).body
+
+
+def test_extends_must_carry_exactly_one_of_concept_and_resource(bundle: Path):
+    write(bundle / "base.md", "type: Metric")
+    both = write(bundle / "both.md", "type: Metric\nextends: {concept: base, resource: /base.md}")
+    with pytest.raises(ResolveError, match="both concept and resource"):
+        resolve(Document.load(both))
+    neither = write(bundle / "neither.md", "type: Metric\nextends: {integrity: abc}")
+    with pytest.raises(ResolveError, match="must carry a concept or a resource"):
+        resolve(Document.load(neither))
+
+
+def test_a_concept_id_may_not_be_a_url(bundle: Path):
+    overlay = write(bundle / "o.md", "type: Metric\nextends: {concept: 'https://x/y'}")
+    with pytest.raises(ResolveError, match="bundle-relative concept id"):
+        resolve(Document.load(overlay))

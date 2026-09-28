@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OKFX graph</title>
+<style>/*__GRAPH_CSS__*/</style>
+</head>
+<body>
+<header>
+  <h1 id="bundle-name"></h1>
+  <div class="controls">
+    <input id="search" type="search" placeholder="Search title, id or tag" aria-label="Search">
+    <select id="type-filter" aria-label="Filter by type"><option value="">All types</option></select>
+    <select id="layout" aria-label="Layout">
+      <option value="cose">Force</option>
+      <option value="breadthfirst">Hierarchy</option>
+      <option value="concentric">Concentric</option>
+      <option value="grid">Grid</option>
+    </select>
+    <span class="toggle" role="radiogroup" aria-label="Document state">
+      <label><input type="radio" name="state" value="raw" checked> As written</label>
+      <label><input type="radio" name="state" value="resolved"> Resolved</label>
+    </span>
+    <label class="check"><input type="checkbox" id="show-extends" checked> extends</label>
+    <label class="check"><input type="checkbox" id="show-source" checked> sources</label>
+    <label class="check"><input type="checkbox" id="show-link" checked> links</label>
+    <button id="reset" type="button">Reset view</button>
+  </div>
+  <div id="tags" class="tags" aria-label="Filter by tag"></div>
+</header>
+<main>
+  <div id="graph"></div>
+  <aside id="detail" hidden>
+    <button id="close-detail" type="button" aria-label="Close">&times;</button>
+    <div id="detail-body"></div>
+  </aside>
+</main>
+<footer>
+  <span id="stats"></span>
+  <span class="legend">
+    <span class="key extends"></span> extends
+    <span class="key source"></span> sources
+    <span class="key link"></span> link
+  </span>
+</footer>
+<script>/*__CYTOSCAPE_JS__*/</script>
+<script>/*__MARKED_JS__*/</script>
+<script>
+const BUNDLE = __BUNDLE_NAME__;
+const GRAPH = __GRAPH_DATA__;
+</script>
+<script>/*__GRAPH_JS__*/</script>
+</body>
+</html>

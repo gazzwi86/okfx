@@ -7,7 +7,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import integrity, validation
+from . import graph, integrity, validation
 from .document import Document, OKFXError
 from .resolve import bundle_root, resolve
 
@@ -140,6 +140,20 @@ def _cmd_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_graph(args: argparse.Namespace) -> int:
+    bundle = Path(args.path)
+    out_path = Path(args.output)
+    result = graph.generate(bundle, out_path)
+    size_kb = out_path.stat().st_size // 1024
+    print(
+        f"{out_path}: {len(result['nodes'])} concepts, {len(result['edges'])} edges, {size_kb} KB"
+    )
+    unresolved = [n["data"]["id"] for n in result["nodes"] if n["data"]["error"]]
+    for node_id in unresolved:
+        print(f"     {node_id} does not resolve; drawn but flagged", file=sys.stderr)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="okfx", description="OKF extensions: integrity, extends, validation"
@@ -182,6 +196,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check.add_argument("--timeout", type=float, default=validation.DEFAULT_TIMEOUT)
     check.set_defaults(func=_cmd_check)
+
+    viz = sub.add_parser("graph", help="write a self-contained interactive HTML view of a bundle")
+    viz.add_argument("path", help="the bundle directory, or a file inside one")
+    viz.add_argument("-o", "--output", default="graph.html")
+    viz.set_defaults(func=_cmd_graph)
 
     return parser
 

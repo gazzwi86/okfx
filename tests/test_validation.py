@@ -99,10 +99,14 @@ def test_an_overlay_cannot_evade_a_rule_its_base_declares(bundle: Path):
     assert [f.message for f in failures] == ["retention is too long"]
 
 
-def test_the_example_validator_catches_an_inverted_retention_window(example_bundle: Path):
-    doc = resolve(Document.load(example_bundle / "projects" / "ledger.md"))
+def test_the_example_validator_runs_against_the_resolved_document(example_project: Path):
+    """An overlay cannot evade a rule its base declares: the rule is inherited."""
+    doc = resolve(Document.load(example_project))
+    assert "/references/validators/churn_rate.py" in [
+        entry["resource"] for entry in doc.frontmatter["validation"]
+    ]
     assert validation.run(doc, allow=True) == []
-    doc.frontmatter["retention"]["access_logs_days"] = 99999
+    doc.frontmatter["rules"]["audit_threshold"] = -1
     failures = validation.run(doc, allow=True)
     assert len(failures) == 1
-    assert "longer than customer records" in failures[0].message
+    assert "must be a positive integer" in failures[0].message

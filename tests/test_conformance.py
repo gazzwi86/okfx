@@ -43,7 +43,7 @@ def test_the_example_bundle_loads_in_the_reference_implementation(example_bundle
 
 
 def test_a_stock_consumer_reads_okfx_documents_and_ignores_the_extra_keys(example_bundle: Path):
-    ledger = example_bundle / "projects" / "ledger.md"
+    ledger = example_bundle / "projects" / "billing" / "churn-rate.md"
     doc = reference.OKFDocument.parse(ledger.read_text(encoding="utf-8"))
     assert OKFX_KEYS & set(doc.frontmatter)
     assert reference.trust_tier(doc.frontmatter) in {
@@ -55,7 +55,7 @@ def test_a_stock_consumer_reads_okfx_documents_and_ignores_the_extra_keys(exampl
 
 
 def test_a_resolved_document_is_still_a_conformant_okf_document(example_bundle: Path):
-    resolved = resolve(Document.load(example_bundle / "projects" / "ledger.md"))
+    resolved = resolve(Document.load(example_bundle / "projects" / "billing" / "churn-rate.md"))
     doc = reference.OKFDocument.parse(resolved.serialize())
     doc.validate()
     assert doc.frontmatter["type"] == "Playbook"
@@ -67,7 +67,7 @@ def test_a_resolved_document_round_trips_through_the_reference_loader(example_bu
     This is stricter than "does it parse": it is what stops a YAML 1.1
     flavoured dump from being read back as something else.
     """
-    resolved = resolve(Document.load(example_bundle / "projects" / "ledger.md"))
+    resolved = resolve(Document.load(example_bundle / "projects" / "billing" / "churn-rate.md"))
     reparsed = reference.OKFDocument.parse(resolved.serialize())
     assert reparsed.frontmatter == resolved.frontmatter
 
