@@ -32,7 +32,7 @@ git clone https://github.com/gazzwi86/okfx && cd okfx
 uvx --from . okfx resolve examples/acme/metrics/churn-rate.eu.md
 ```
 
-The file you just resolved is nine lines long:
+The file you just resolved is this whole thing:
 
 ```yaml
 ---
@@ -123,9 +123,15 @@ suite checks:
 | `projects/billing/churn-rate.md` | three levels down, with its own `id` |
 | `policies/retention.md` | the policy the metric cites via `sources` |
 
-Two deliberate details. The base's `sources[].resource` is bundle-relative and
+Three deliberate details. The base's `sources[].resource` is bundle-relative and
 its footnote is a real markdown link, so the provenance edge actually resolves in
 the graph; the article prints both as plain text.
+
+The base keeps the article's `stale_after: 2026-12-31T00:00:00Z`, so from January
+2027 the viewer marks it stale, along with everything resolved from it. That is
+the lifecycle family working, not a bug - it is what `stale_after` is for, and
+seeing it fire is more instructive than a date quietly moved to keep the example
+looking clean.
 
 And the EU overlay carries **no `generated` of its own**, exactly as published.
 That means it inherits the base's `verified`, so the resolved document presents as

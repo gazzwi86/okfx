@@ -379,7 +379,7 @@ merge.
 
 ## 7. Versioning
 
-This document specifies OKFX version 0.1, targeting OKF v0.2. OKFX follows OKF's
+This document specifies OKFX version 0.2, targeting OKF v0.2. OKFX follows OKF's
 versioning scheme (OKF §12). There is no `okfx_version` declaration: OKF §8
 permits exactly one key in a root `index.md` frontmatter block, and OKFX will
 not spend a bundle's only conformance-sensitive slot on announcing itself. A
