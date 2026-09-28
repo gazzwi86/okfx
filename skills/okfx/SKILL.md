@@ -4,8 +4,8 @@ description: >-
   Author and check OKF bundles that use the OKFX families: `extends` inheritance
   with hash pinning, `integrity` seals, and declarative `validation`. Use when
   asked to add an overlay to a policy, re-pin a document after its base changed,
-  seal or verify OKF documents, resolve an inheritance chain, or check a bundle
-  before committing.
+  seal or verify OKF documents, resolve an inheritance chain, render a bundle as
+  an interactive HTML graph, or check a bundle before committing.
 user-invocable: true
 argument-hint: "[bundle-dir | document.md]"
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep
@@ -18,13 +18,15 @@ OKFX adds three optional frontmatter families to OKF v0.2. Read
 <https://github.com/gazzwi86/okfx/blob/main/EXTENSION.md>) before authoring
 anything non-obvious; the rules below are the operational summary, not the spec.
 
-Every command is `okfx`, installed with `uv tool install okfx` or run as
-`uvx okfx`. It never needs network access.
+Every command is `okfx`. It is not on PyPI, so install it with
+`uv tool install git+https://github.com/gazzwi86/okfx`, or run it without
+installing via `uvx --from git+https://github.com/gazzwi86/okfx okfx`. The
+examples below write `okfx` for brevity. Nothing it does needs network access.
 
 ## Check first, always
 
 ```bash
-uvx okfx check <bundle-dir>
+okfx check <bundle-dir>
 ```
 
 Run this before you start and again before you claim the work is done. It exits
@@ -43,24 +45,30 @@ An overlay is a normal OKF concept that adds `extends`:
 
 ```yaml
 ---
-type: Policy
-title: Customer data handling in Finance
+type: Metric
+title: Churn Rate, EU
 generated: { by: <your actor per OKF §7>, at: <ISO 8601 with Z> }
-target_context: { domain: finance }
-retention:
-  access_logs_days: 365
+target_context: { region: EU }
+rules:
+  currency_default: EUR
+  audit_threshold: 5000
 extends:
-  resource: /policies/data-handling.md
+  concept: metrics/churn-rate
   integrity: <the base's digest>
 ---
 
-# Access
+# Audit
 
-Finance reviews access monthly.
+Cancellations above the EU threshold go to the Dublin Finance desk within 72
+hours.
 ```
 
 Rules that catch people out:
 
+- **Name the base with `concept` or `resource`, never both.** `concept` is a
+  concept id read from the bundle root, with `.md` optional - prefer it, because
+  it keeps working if the overlay moves. `resource` is an OKF §6.2 path, relative
+  to the overlay unless it starts with `/`.
 - **Write only what changes.** The base's frontmatter and body are inherited.
   Restating a base section verbatim in the overlay is not harmless: it silently
   becomes the overlay's own content and stops tracking the base.
@@ -76,20 +84,20 @@ Rules that catch people out:
 Get the base's digest with:
 
 ```bash
-uvx okfx hash <path-to-base>
+okfx hash <path-to-base>
 ```
 
 Then check the result resolves the way the user expects:
 
 ```bash
-uvx okfx resolve <overlay.md>
+okfx resolve <overlay.md>
 ```
 
 ## Sealing
 
 ```bash
-uvx okfx seal <paths> --by <actor>   # writes integrity onto the frontmatter
-uvx okfx verify <paths>
+okfx seal <paths> --by <actor>   # writes integrity onto the frontmatter
+okfx verify <paths>
 ```
 
 Seal the base before pinning it: the pin and the seal are the same digest, and
@@ -103,18 +111,29 @@ prepared to re-seal it and re-pin every overlay that derives from it.
 
 This is the workflow OKFX exists for, and it is deliberately noisy.
 
-1. `uvx okfx check <bundle>` fails with `extends pin does not match`.
+1. `okfx check <bundle>` fails with `extends pin does not match`.
 2. Read both documents. Decide with the user whether the overlay still says what
    they mean given the base's new content - that is a judgement, not a rebase.
-3. Re-seal the base if it carries a seal: `uvx okfx seal <base> --by <actor>`.
+3. Re-seal the base if it carries a seal: `okfx seal <base> --by <actor>`.
 4. Update each overlay's `extends.integrity` to the new
-   `uvx okfx hash <base>` output.
+   `okfx hash <base>` output.
 5. Re-seal each overlay that carries its own seal, in chain order, base first.
-6. `uvx okfx check <bundle>` until clean.
+6. `okfx check <bundle>` until clean.
 
 Never silently update a pin to make a build pass. The pin failing *is* the
 signal, and updating it without reading the diff throws away the only mechanism
 that tells anyone the derived policy changed meaning.
+
+## Showing someone the bundle
+
+```bash
+okfx graph <bundle-dir> -o graph.html
+```
+
+One self-contained HTML file: no network at view time, so it can be attached or
+committed. Use it when the user asks what derives from what, or wants to see the
+effect of resolution - the **As written / Resolved** toggle shows each concept
+before and after its chain is merged. Do not hand-build a graph; this is it.
 
 ## Writing a validator
 

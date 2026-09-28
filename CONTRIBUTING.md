@@ -53,6 +53,35 @@ broken-base refusal, circular and multi-level chains, section merging including
 fenced code blocks, and validator failure modes. Extend the file that matches;
 `tests/conftest.py` has the bundle fixtures.
 
+`tests/test_article.py` holds the repository to the claims of the article that
+introduced it. Its two document constants are pasted from the published text; do
+not "fix" them to match the repository, because their whole job is to fail if the
+repository drifts away from what a reader was told.
+
+## The graph viewer
+
+`src/okfx/graph.py` builds the payload, and Python tests cover that. Nothing in
+pytest executes `static/graph.js`, so two checks fall outside the suite:
+
+```shell
+node --check src/okfx/static/graph.js          # CI runs this
+uv run okfx graph examples/acme -o /tmp/g.html && open /tmp/g.html
+```
+
+Open the file after any change to the page. Check the **As written / Resolved**
+toggle, a tag chip, the search box, clicking a node, and a `#concept-id` fragment
+in the URL. Then confirm it still works with the network off - that is the
+property the vendored libraries exist for, and a `<script src="https://...">` that
+creeps in will look fine on a developer machine and fail for everyone else.
+`tests/test_graph.py` asserts no remote references survive into the output, so it
+will catch that too.
+
+**Vendored assets.** `static/vendor/` holds Cytoscape.js and marked, unmodified
+and minified, each beside its licence. Bumping one means: replace the file,
+replace its licence, update the version in `NOTICE`, and re-run the browser check
+above. Do not add a third library without a reason that survives the question
+"what would this cost in bytes shipped to every viewer".
+
 ## Style
 
 British English in prose, spaced hyphens rather than em-dashes, no Oxford comma.

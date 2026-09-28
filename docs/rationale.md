@@ -90,6 +90,27 @@ running a tool. Worse, removing an inherited entry becomes impossible without a
 deletion syntax, and a deletion syntax is how a merge language starts. Replace is
 auditable: the overlay's list is the list.
 
+### Why there are two spellings of the base
+
+`resource` came first and is the honest one: OKF §6.2 defines path semantics for
+every path-valued field, and a new extension inventing its own resolution rules
+for the same job is how a format fragments.
+
+`concept` was added because the article that introduced OKFX published an overlay
+written as `extends: {concept: metrics/churn-rate}`, and published prose cannot be
+recalled. Rejecting it would have meant every reader who pasted the snippet got an
+error, which is a worse outcome than carrying a second spelling.
+
+It earns its place on merit too, which is why it is documented rather than
+tolerated: a concept id is resolved from the bundle root, so it does not change
+meaning when an overlay moves between directories, whereas a relative `resource`
+does. That makes `concept` the better default for deep bundles and `resource` the
+better fit for consistency with the rest of OKF. Both being accepted, and exactly
+one being required, is a smaller cost than picking wrong.
+
+If core ever adopts derivation, one spelling is enough and it should be
+`resource`.
+
 ### Why there is no multiple inheritance
 
 Two bases means precedence rules between them, and precedence rules between
@@ -139,6 +160,14 @@ and passes on Wednesday, and the first thing a team does is disable it. OKF
 reached the same conclusion for attesters, so `validation` uses the same rule
 rather than inventing a second one.
 
+It borrows the contract and not the name, deliberately. An attester checks a
+*receipt* from one execution of one sanctioned computation, and only on a
+`type: Attested Computation` concept; it answers "did the blessed query run and
+produce this number". A validator checks a *document* of any type against a rule
+its author or one of its bases declared. Calling ours an attester would claim the
+narrower guarantee §10 defines and quietly widen it, which is the kind of
+borrowed vocabulary that makes two formats impossible to reason about together.
+
 ### What would justify upstreaming
 
 Nothing, until OKF settles the attester ABI and packaging. If it does,
@@ -169,3 +198,30 @@ A spec PR would ask maintainers to commit to a canonical form and a consumer
 obligation before any of it has been exercised outside one repository. A
 Discussion asking whether derivation belongs in core is the honest shape of the
 question.
+
+---
+
+## Why there is a graph viewer here at all
+
+There are already good OKF viewers: Google's reference bundles ship one,
+[okf-skills](https://github.com/scaccogatto/okf-skills) has one, and
+[serradura/okf](https://github.com/serradura/okf) has the most complete one going.
+Building a fourth needs justifying, and "we wanted our own" does not.
+
+The justification is that every one of them derives edges from markdown links in
+the body. That is the right model for plain OKF, where §6.1 says links are untyped
+and their meaning lives in prose. It means none of them can draw a derivation
+edge, and none can show a concept as written beside the same concept resolved -
+which are exactly the two things OKFX adds and therefore the two things worth
+looking at. A viewer that cannot show them is not a substitute.
+
+The rest of the design follows from one constraint: the output must open from a
+`file://` URL with the network off. That is why Cytoscape and marked are vendored
+and inlined rather than pulled from a CDN, which is how Google's own viewer does
+it and the reason its generated file is blank on a train. The cost is roughly
+400 KB per generated page and two libraries to keep current; the benefit is an
+artefact you can attach to an email, commit, or hand to someone who will never
+install anything.
+
+What this is not: a server, a search index, or a publishing pipeline. For those,
+the tools above are better and this one should stay out of their way.

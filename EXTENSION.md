@@ -1,6 +1,6 @@
 # OKFX
 
-**Version 0.1. An extension to the Open Knowledge Format (OKF) v0.2.**
+**Version 0.2. An extension to the Open Knowledge Format (OKF) v0.2.**
 
 OKFX adds three optional frontmatter families to OKF: `integrity` (content
 sealing), `extends` with `target_context` (concept inheritance) and `validation`
@@ -27,6 +27,11 @@ carries no meaning a consumer must understand to read the file.
 
 An OKFX consumer:
 
+- MUST accept both spellings of an `extends` target and resolve them
+  differently: `concept` is always read from the bundle root, `resource` is
+  relative to the overlay unless it begins with `/` (§4.1). Getting `concept`
+  wrong by resolving it relative to the overlay is the one mistake that produces
+  a plausible-looking wrong answer rather than an error.
 - MUST recompute a base's hash from the base's own bytes when resolving
   `extends`, and MUST NOT read the base's own `integrity.value` as the answer
   (§4.4).
@@ -49,12 +54,12 @@ integrity:                                     # §3
   sealed_by: human:ahormati                    # optional
   sealed_at: 2026-01-16T09:00:00Z              # optional
 extends:                                       # §4
-  resource: /policies/data-handling.md
+  concept: metrics/churn-rate                  # or `resource:`, see §4.1
   integrity: cb48b2b365caf6feab7d18757e4e99cc9f188c04c82eb50a7f2872aa11b0b867
-target_context: { org: acme, domain: finance } # §4.7
+target_context: { org: acme, region: EU }      # §4.7
 validation:                                    # §5
-  - resource: /references/validators/retention.py
-    description: Retention windows are positive integers.
+  - resource: /references/validators/churn_rate.py
+    description: Audit thresholds are positive integers.
 resolved_from: []                              # §4.6, written by the resolver
 ---
 ```
@@ -136,17 +141,45 @@ block is not invalid: sealing is optional, and its absence means "unsealed", not
 
 ```yaml
 extends:
-  resource: /policies/data-handling.md   # REQUIRED, a path per OKF §6.2
+  concept: metrics/churn-rate            # a concept id, from the bundle root
   integrity: <lowercase hex>             # optional pin
 ```
 
-`resource` is bundle-relative (leading `/`) or relative to the overlay. An
-absolute URL is refused: resolution reads the base's bytes to hash them, so a
-base must be a file in the bundle rather than something fetched over a network
-whose content can differ per read.
+```yaml
+extends:
+  resource: /policies/retention.md       # or a path per OKF §6.2
+  integrity: <lowercase hex>
+```
+
+Exactly one of `concept` and `resource` is REQUIRED. A block carrying both is an
+error rather than a precedence puzzle, and a block carrying neither is an error
+rather than an empty inheritance.
+
+`concept` is a **concept id**: always resolved from the bundle root, with `.md`
+optional and a leading `/` permitted but not needed. `metrics/churn-rate`,
+`/metrics/churn-rate` and `metrics/churn-rate.md` all name the same file. Because
+it never depends on where the overlay sits, moving an overlay between directories
+cannot change which base it derives from.
+
+`resource` is a **path** in the sense OKF §6.2 already defines: bundle-relative
+with a leading `/`, otherwise relative to the overlay. Use it when you want the
+same rules every other OKF path-valued field follows; use `concept` when you want
+a stable name for the base regardless of the overlay's location.
+
+Neither may be an absolute URL. Resolution reads the base's bytes in order to
+hash them, so a base must be a file in the bundle rather than something fetched
+over a network whose content can differ per read.
 
 A document has at most one `extends`. Multiple inheritance is deliberately not
 supported (see [`docs/rationale.md`](docs/rationale.md)).
+
+Derivation is not something core OKF v0.2 leaves implicit; it names it and puts
+it aside. OKF §5.1: "Lineage is expressed through links, not a dedicated field",
+and "Deeper lineage (an explicit external `derived_from`, or data lineage) is out
+of scope for v0.2." `sources[].resource` recursion is a citation graph that lets
+credibility propagate; it defines no merge and no precedence. `extends` is the
+missing half, and it is deliberately a different key from `sources` so that
+citing a document and deriving from one stay distinguishable.
 
 ### 4.2 Frontmatter merge
 
@@ -226,13 +259,16 @@ furthest base first, with every digest recomputed at resolution time.
 
 ```yaml
 resolved_from:
-  - resource: /policies/data-handling.md
+  - resource: /metrics/churn-rate.md
     algorithm: sha256
-    integrity: cb48b2b365caf6feab7d18757e4e99cc9f188c04c82eb50a7f2872aa11b0b867
-  - resource: /domains/finance.md
+    integrity: fc1702e0ed2792f4ae39a247a7f181b41b989f4b14e47ddba183c09deb40a1a5
+  - resource: /metrics/churn-rate.eu.md
     algorithm: sha256
-    integrity: 80a7d8fffb4021783af497525eb358b2802d6e21c4d2c2958e49ef762abaa28c
+    integrity: f5a29364125b8bd10c7164e51a9b73ba20ee52923cc6a8ea1bd0083d95e38f24
 ```
+
+Entries record `resource` whichever spelling the overlay used: `resolved_from`
+states where a base was found, not how it was named.
 
 The overlay itself is not listed: it is the document you are holding. A resolved
 document that is then sealed carries `resolved_from` inside its own digest, so
@@ -244,12 +280,12 @@ the record of what it derives from is itself tamper-evident.
 applies:
 
 ```yaml
-target_context: { org: acme, domain: finance, project: ledger }
+target_context: { org: acme, region: EU, project: billing }
 ```
 
 It carries no defined key names and no precedence rules. It merges like any
 other mapping (§4.2), so a three-level chain accumulates
-`{org, domain, project}` and the resolved document states its full scope in one
+`{org, region, project}` and the resolved document states its full scope in one
 place. A consumer holding several candidate documents can use it to pick the one
 matching its context; OKFX itself only merges it.
 
@@ -268,8 +304,8 @@ not an empty inheritance.
 
 ```yaml
 validation:
-  - resource: /references/validators/retention.py   # REQUIRED, a path per OKF §6.2
-    description: Retention windows are positive integers.
+  - resource: /references/validators/churn_rate.py  # REQUIRED, a path per OKF §6.2
+    description: Audit thresholds are positive integers.
 ```
 
 `description` is what a human reads in a review and what an agent reads when
@@ -293,6 +329,16 @@ randomness. Two runs over the same document must agree. This mirrors OKF's
 attester contract (OKF §10.2), which is deterministic for the same reason: a
 check whose verdict can change without the document changing cannot gate
 anything.
+
+`validation` generalises that pattern; it does not duplicate it, and it
+deliberately does not reuse the name. An OKF §10 `attester` checks a *receipt*
+from one run of one sanctioned computation, is attached only to a
+`type: Attested Computation` concept, and answers "did the blessed query run and
+produce this number". A validator checks a *document* - any concept of any type -
+and answers "does this document satisfy a rule its author or one of its bases
+declared". OKF §12 lists the attester ABI and the receipt wire format among the
+things deferred to a future revision, so `attester` is a name with a narrower
+meaning already spoken for. If core later generalises it, §7 applies.
 
 ### 5.3 Validators run against the resolved document
 

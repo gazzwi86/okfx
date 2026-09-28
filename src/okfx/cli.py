@@ -58,9 +58,22 @@ def _cmd_hash(args: argparse.Namespace) -> int:
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
+    """Check documents against their seals.
+
+    Sealing is optional (EXTENSION.md §3.3): an absent `integrity` block means
+    "unsealed", not "untrusted". So an unsealed document is only a failure when
+    the caller named that file, which is a request to verify it. Expanding a
+    directory and failing on every unsealed concept would make `verify` unusable
+    on any bundle that seals some documents and not others - which is all of them.
+    """
+    named = {Path(p).resolve() for p in args.paths}
     failures = 0
+    unsealed = 0
     for path in concept_paths([Path(p) for p in args.paths]):
         doc = Document.load(path)
+        if doc.frontmatter.get("integrity") is None and path.resolve() not in named:
+            unsealed += 1
+            continue
         try:
             integrity.verify(doc)
         except OKFXError as e:
@@ -68,6 +81,8 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             failures += 1
         else:
             print(f"ok   {path}")
+    if unsealed:
+        print(f"     {unsealed} unsealed document(s) skipped: sealing is optional")
     return 1 if failures else 0
 
 

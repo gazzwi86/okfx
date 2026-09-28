@@ -91,3 +91,25 @@ def test_a_directory_named_on_the_command_line_is_taken_to_be_a_bundle(tmp_path:
     write(tmp_path / "a.md", "type: Policy")
     write(tmp_path / "b.md", "title: No type")
     assert main(["check", str(tmp_path)]) == 1
+
+
+def test_verify_over_a_bundle_skips_unsealed_documents(bundle: Path):
+    """Sealing is optional (EXTENSION.md §3.3), so an unsealed concept is not a failure."""
+    sealed = write(bundle / "sealed.md", "type: Policy")
+    assert main(["seal", str(sealed)]) == 0
+    write(bundle / "plain.md", "type: Policy")
+    assert main(["verify", str(bundle)]) == 0
+
+
+def test_verify_on_a_named_unsealed_file_is_a_failure(bundle: Path):
+    """Naming a file is a request to verify that file, so silence would be wrong."""
+    path = write(bundle / "plain.md", "type: Policy")
+    assert main(["verify", str(path)]) == 1
+
+
+def test_verify_over_a_bundle_still_fails_on_a_broken_seal(bundle: Path):
+    path = write(bundle / "a.md", "type: Policy")
+    assert main(["seal", str(path)]) == 0
+    path.write_text(path.read_text() + "\ntampered\n", encoding="utf-8")
+    write(bundle / "plain.md", "type: Policy")
+    assert main(["verify", str(bundle)]) == 1

@@ -34,6 +34,14 @@ with the company policy copied in. That reads well and drifts immediately. When
 the company policy changes, nothing in the bundle knows which project documents
 were derived from the old text.
 
+We do not think this is something v0.2 overlooked. §5.1 names it and sets it
+aside: "Lineage is expressed through links, not a dedicated field", and "Deeper
+lineage (an explicit external `derived_from`, or data lineage) is out of scope for
+v0.2." `sources[].resource` recursion gives a citation graph that credibility can
+propagate along, which is a genuinely different job: it defines no merge and no
+precedence, so it cannot say which of three true documents governs. The question
+below is whether the deferred half is now worth picking up.
+
 There is a second half to this that v0.2's trust families do not reach. §5 lets
 me record who generated a concept, who verified it and when it goes stale, which
 answers "can I trust this concept". It does not answer "can I trust the concept
@@ -46,9 +54,13 @@ One optional frontmatter key on the derived document:
 
 ```yaml
 extends:
-  resource: /policies/data-handling.md   # a path per §6.2
+  concept: policies/data-handling                    # a concept id from the bundle root
   integrity: <sha256 of the base's canonical form>   # optional pin
 ```
+
+(Our implementation also accepts `resource:` with §6.2 path semantics. If core
+ever took this on, one spelling would be enough, and `resource` is the one
+consistent with every other path-valued field in the spec.)
 
 Frontmatter deep-merges with the derived document winning; bodies merge by
 heading; the chain is recorded on the resolved output so the derivation is

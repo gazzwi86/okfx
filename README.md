@@ -1,60 +1,180 @@
 # OKFX
 
-Concept inheritance, content integrity and declarative validation for
-[Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog)
-(OKF) v0.2 bundles.
+**Inheritance for markdown knowledge bases.** Write a policy once, then derive a
+regional or project-level version from it instead of copying it.
 
-OKFX is an independent extension. It is not a Google project, it is not endorsed
-by Google, and it is not part of the OKF specification. OKF itself is published
-by Google Cloud under Apache 2.0; see [`NOTICE`](NOTICE).
+OKFX is a small extension to
+[Open Knowledge Format](https://github.com/GoogleCloudPlatform/open-knowledge-format)
+(OKF) v0.2, Google Cloud's format for describing knowledge as markdown files with
+YAML frontmatter. It is an independent project: not a Google project, not
+endorsed by Google, and not part of the OKF specification. See [`NOTICE`](NOTICE).
 
-Every OKFX document is a valid OKF v0.2 document. `type` stays the only required
-field, all three families are optional, and a stock OKF consumer reads an OKFX
-bundle without error and ignores the extra keys. The test suite asserts this by
-running the OKF reference implementation's own loader over the example bundle.
+## The problem
 
-## What it does
+The same rule usually exists three times. A company policy nobody has read, a
+domain-level interpretation of it nobody has read either, and a project that
+quietly writes its own. All three are true. All three sit in the bundle at once.
 
-Three optional frontmatter families, specified in [`EXTENSION.md`](EXTENSION.md):
+Hand all three to an agent and it answers from whichever one scored best on
+retrieval, because nothing in the file says which one governs. The usual fix is
+to flatten them into one self-contained document per project, which copies the
+company policy into every project and guarantees the copies drift.
 
-- **`integrity`** - a SHA-256 seal over a canonical form of the document.
-  Reordering keys, re-indenting, or changing line endings does not break a seal.
-  Changing a value or a word of prose does.
-- **`extends`** (with `target_context`) - a document derives from another.
-  Frontmatter deep-merges with the overlay winning, bodies merge by heading, and
-  `extends.integrity` pins the base the overlay was written against. The pin is
-  checked against a hash recomputed from the base's bytes, never against the
-  base's own claim.
-- **`validation`** - a list of deterministic Python checks that run against the
-  *resolved* document, so an overlay cannot evade a rule its base declares.
+OKFX adds one frontmatter key that states the precedence, so resolving it is
+mechanical rather than a judgement made at retrieval time.
 
-## What it does not do
+## Sixty seconds
 
-- It does not sign anything. A seal detects change; it does not prove
-  authorship. Whole-bundle signing is
-  [proposed upstream](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/140)
-  and composes with this rather than competing with it.
-- It does not sandbox validators. See [below](#validators-are-code).
-- It does not serve, index or retrieve bundles. It is a CLI and a library that
-  reads and writes files.
-- It does not define types, a vocabulary or an ontology. See
-  [prior art](#prior-art).
+You do not need to install anything. This runs the tool once and throws it away:
+
+```shell
+git clone https://github.com/gazzwi86/okfx && cd okfx
+uvx --from . okfx resolve examples/acme/metrics/churn-rate.eu.md
+```
+
+The file you just resolved is nine lines long:
+
+```yaml
+---
+type: Metric
+extends:
+  concept: metrics/churn-rate
+target_context:
+  region: EU
+rules:
+  currency_default: EUR
+  audit_threshold: 5000
+---
+# Audit
+
+Cancellations above the EU threshold go to the Dublin Finance desk within 72
+hours, per local reporting obligations.
+```
+
+What comes back is the whole metric: the title, description, tags, status and
+trust signals from the base, the base's `# Definition` section, the currency
+resolved to `EUR`, the threshold to `5000`, and the `# Audit` section appended.
+Nothing was copied to make that happen.
+
+Then look at the bundle as a graph:
+
+```shell
+uvx --from . okfx graph examples/acme -o graph.html && open graph.html
+```
+
+That is one self-contained HTML file. It works offline, from a `file://` URL,
+with nothing fetched from the network. Toggle **As written / Resolved** to watch
+the overlay gain everything it inherits.
+
+## How the merge works
+
+Frontmatter deep-merges with the overlay winning. Mappings merge key by key;
+scalars and lists replace wholesale.
+
+Bodies merge by heading:
+
+- A heading the base also has **replaces** the base's version, in the base's
+  position.
+- A heading the base lacks is **appended**.
+- A heading the overlay says nothing about is **kept** as the base wrote it.
+
+Headings match on level and text, ignoring case and extra whitespace. A `#` line
+inside a fenced code block is not a heading, so a shell example never opens a
+section.
+
+Chains go as deep as you like. The example bundle is three levels: the metric, an
+EU overlay, and a billing project inside it.
+
+### Naming the base
+
+```yaml
+extends:
+  concept: metrics/churn-rate       # a concept id, read from the bundle root
+```
+
+```yaml
+extends:
+  resource: ../metrics/churn-rate.md   # a path, per OKF §6.2
+```
+
+Use exactly one. `concept` is resolved from the bundle root with `.md` optional,
+so moving an overlay between directories cannot change which base it derives
+from. `resource` follows the relative-path rules every other OKF path field
+follows. Full rules in [`EXTENSION.md`](EXTENSION.md) §4.1.
+
+### Still valid OKF
+
+A stock OKF consumer reads an OKFX bundle without error and ignores the keys it
+does not know, because OKF §4.1 and §11 require exactly that. It sees the overlay
+unresolved - a complete, readable concept in its own right - rather than a broken
+one. The test suite asserts this by running the OKF reference implementation's own
+loader over the example bundle, and by round-tripping every document through it.
+
+## The example bundle
+
+[`examples/acme`](examples/acme) is the article's example, and it is what the test
+suite checks:
+
+| File | Shows |
+|------|-------|
+| `metrics/churn-rate.md` | the base metric, sealed, declaring one validator |
+| `metrics/churn-rate.eu.md` | the article's overlay, character for character |
+| `metrics/churn-rate.au.md` | the same overlay done properly: pinned base, own provenance |
+| `projects/billing/churn-rate.md` | three levels down, with its own `id` |
+| `policies/retention.md` | the policy the metric cites via `sources` |
+
+Two deliberate details. The base's `sources[].resource` is bundle-relative and
+its footnote is a real markdown link, so the provenance edge actually resolves in
+the graph; the article prints both as plain text.
+
+And the EU overlay carries **no `generated` of its own**, exactly as published.
+That means it inherits the base's `verified`, so the resolved document presents as
+human-reviewed on the strength of a review of the *base*. That is a real hazard,
+documented in [`EXTENSION.md`](EXTENSION.md) §4.5. The AU overlay is the same
+document written the way you should write one: its own `generated`, and a pinned
+base. Compare the two.
+
+## What else is in here
+
+Two more optional families, both specified in [`EXTENSION.md`](EXTENSION.md).
+Neither is needed to use `extends`.
+
+**`integrity`** - a SHA-256 seal over a canonical form of the document.
+Reordering frontmatter keys, re-indenting, or changing line endings does not
+break a seal. Changing a value or a word of prose does. Core OKF has no digest of
+any kind: `verified` records who reviewed a document, and stays true-looking after
+someone edits it.
+
+Its point is `extends.integrity`, which pins the base an overlay was written
+against. The pin is checked against a hash **recomputed from the base's bytes**,
+never against the base's own claim about itself - because anyone who can edit a
+base can also update the claim inside it. So editing a base fails the build in
+every project that derives from it, instead of silently changing what those
+projects mean.
+
+**`validation`** - deterministic Python checks a document declares, which run
+against the *resolved* document, so an overlay cannot evade a rule its base
+declares. This generalises OKF §10's `attester`, which checks one receipt from
+one sanctioned computation; a validator checks a document of any type. Read
+[validators are code](#validators-are-code) before running any.
 
 ## Install
 
-Python 3.11+. Not yet on PyPI:
+Python 3.11+. Not on PyPI.
 
 ```shell
-uv tool install git+https://github.com/gazzwi86/okfx
+uvx --from git+https://github.com/gazzwi86/okfx okfx check .okf/   # run once
+uv tool install git+https://github.com/gazzwi86/okfx              # keep it
 ```
 
-## Use
+## Commands
 
 ```shell
-okfx hash     examples/acme/policies/data-handling.md   # digest, for authoring pins
-okfx seal     examples/acme/policies/data-handling.md --by human:ahormati
+okfx resolve  examples/acme/metrics/churn-rate.eu.md    # merge a document with its chain
+okfx graph    examples/acme -o graph.html               # the bundle as one HTML file
+okfx hash     examples/acme/metrics/churn-rate.md       # digest, for authoring pins
+okfx seal     examples/acme/metrics/churn-rate.md --by human:gwilliams
 okfx verify   examples/acme
-okfx resolve  examples/acme/projects/ledger.md
 okfx validate examples/acme --allow-validators
 okfx check    examples/acme --allow-validators          # the CI entrypoint
 ```
@@ -65,9 +185,12 @@ validators - and exits non-zero on the first thing that fails. As a library:
 ```python
 from okfx import Document, resolve, seal, verify
 
-doc = Document.load("examples/acme/projects/ledger.md")
+doc = Document.load("examples/acme/projects/billing/churn-rate.md")
 resolved = resolve(doc)  # merged, with resolved_from recorded
-verify(doc)  # raises IntegrityError on a broken seal
+
+base = Document.load("examples/acme/metrics/churn-rate.md")
+verify(base)  # raises IntegrityError on a broken seal
+sealed = seal(resolved)  # a resolved document can be sealed in turn
 ```
 
 ### Git hook
@@ -76,7 +199,7 @@ verify(doc)  # raises IntegrityError on a broken seal
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/gazzwi86/okfx
-    rev: v0.1.0
+    rev: v0.2.0
     hooks:
       - id: okfx-check
 ```
@@ -85,41 +208,30 @@ The hook runs `okfx check --skip-validators` over staged markdown: conformance,
 seals and `extends` resolution, with declared validators reported as unrun. Add
 `args: [--allow-validators]` to execute them.
 
-A staged file is checked only when it sits inside a bundle, meaning some
-ancestor directory holds an `index.md`. A repository's own `README.md` is not a
-concept and is not held to OKF §11. A directory named on the command line -
-`okfx check .okf/`, as CI does - is taken to be a bundle whether or not it has
-an `index.md`.
+A staged file is checked only when it sits inside a bundle, meaning some ancestor
+directory holds an `index.md`. A repository's own `README.md` is not a concept and
+is not held to OKF §11. A directory named on the command line - `okfx check .okf/`,
+as CI does - is taken to be a bundle whether or not it has an `index.md`.
 
 ### Claude Code plugin
-
-From this repository, once it is public:
 
 ```shell
 /plugin marketplace add gazzwi86/okfx
 /plugin install okfx@gazzwi86
 ```
 
-The plugin ships one skill that teaches an agent to author overlays, re-pin them
-when a base changes, and run `okfx check` before it claims a bundle is clean.
-See [`skills/okfx/SKILL.md`](skills/okfx/SKILL.md).
+One skill, which teaches an agent to author overlays, re-pin them when a base
+changes, and run `okfx check` before claiming a bundle is clean. See
+[`skills/okfx/SKILL.md`](skills/okfx/SKILL.md).
 
-## The problem it addresses
+## What it does not do
 
-Enterprise context arrives in inheritance chains. A company policy states a
-retention window; a domain interprets it; a project implements it. Written as
-three independent OKF concepts, all three are in the bundle at once and an agent
-retrieving "retention policy" gets three answers with no encoded precedence. The
-usual fix is to flatten them into one document per project, which duplicates the
-company policy into every project and guarantees the copies drift.
-
-`extends` states the precedence in the frontmatter, so resolution is mechanical
-rather than a judgement the agent makes at retrieval time.
-
-The integrity half exists because OKF v0.2's trust families answer "can I trust
-this concept" but not "can I trust the concept this one derives from". A pinned,
-recomputed hash makes an edit to a base a build failure in every project that
-derives from it, rather than a silent change in what a project's policy means.
+- It does not sign anything. A seal detects change; it does not prove authorship.
+  For that, pair it with [signed-okf](https://github.com/Fluxdyne/signed-okf).
+- It does not sandbox validators. See [below](#validators-are-code).
+- It does not serve, index or retrieve bundles. It reads and writes files.
+- It does not define types, a vocabulary or an ontology. See
+  [prior art](#prior-art-and-the-wider-ecosystem).
 
 ## Validators are code
 
@@ -127,10 +239,9 @@ derives from it, rather than a silent change in what a project's policy means.
 of whoever ran the command. OKFX does not sandbox it and does not pretend to.
 
 The decision: **refuse by default, run only on an explicit opt-in**
-(`--allow-validators`, or `OKFX_ALLOW_VALIDATORS=1`). Treat a bundle's
-validators exactly as you would treat its `conftest.py`, its `Makefile` or a git
-hook it ships - as code you are choosing to run, from a source you have reason
-to trust.
+(`--allow-validators`, or `OKFX_ALLOW_VALIDATORS=1`). Treat a bundle's validators
+exactly as you would treat its `conftest.py`, its `Makefile` or a git hook it
+ships - as code you are choosing to run, from a source you have reason to trust.
 
 Validators do run in a subprocess with a timeout, so a crash is a clean failure
 and a hang is a reported one. That is containment for accidents, not a security
@@ -142,34 +253,66 @@ A document that declares validators which did not run is not a passing document.
 `okfx check` fails on it unless you pass `--skip-validators`, which records them
 as unrun.
 
-## Prior art
+The graph viewer treats a bundle as untrusted input too: it renders bodies with
+angle brackets neutralised, so a document cannot inject script into the page, and
+it embeds no remote resources.
 
-OKFX is one of several extensions built on OKF's permissive conformance rules.
-Where one of these solves a problem better, use it:
+## Prior art and the wider ecosystem
+
+OKF's conformance rules invite extension, and plenty of people have accepted. The
+field is larger than it looks; where one of these solves your problem better, use
+it. OKFX's scope is narrow on purpose.
+
+Closest to OKFX:
 
 - **[data-olympus](https://github.com/knaisoma/data-olympus)** - governance
-  extensions on OKF: stable `id`, controlled `status`/`tier`, `supersedes`
-  chains, and a single-writer MCP server. If your problem is governed
-  multi-agent *writes* and decision supersession, that is a more complete answer
-  than anything here. OKFX is a file-level tool with no server and no lock.
+  extensions: stable `id`, controlled `status`/`tier`, `supersedes` chains, and a
+  single-writer MCP server. For governed multi-agent *writes* and decision
+  supersession, that is a more complete answer than anything here. Note
+  `supersedes` is version succession, not overlay inheritance: it replaces a
+  document rather than merging with it.
 - **[LOKF](https://github.com/nicholsn/lokf)** - binds OKF frontmatter to
-  schema.org, DCAT and PROV-O via LinkML, so a bundle is also valid JSON-LD.
-  If you want typed relationships, a shared vocabulary or SPARQL, LOKF is the
-  answer and OKFX is not: `extends` is a single untyped derivation edge, not a
-  relationship model.
-<!-- TODO: Tur EP-0120 (memory mapped onto OKF directories, Merkle seals over the
-     tree). No public source found; add the bullet once there is a link to cite. -->
-- **[signed-okf](https://github.com/dynamicfeed/signed-okf)**
+  schema.org, DCAT and PROV-O via LinkML, generating JSON-LD, JSON Schema, SHACL
+  and OWL from one source. For typed relationships, a shared vocabulary or
+  SPARQL, LOKF is the answer and OKFX is not: `extends` is a single untyped
+  derivation edge, not a relationship model. Its SHACL validation is
+  schema-shaped, where OKFX's `validation` is per-document and rule-shaped.
+- **[signed-okf](https://github.com/Fluxdyne/signed-okf)**
   ([#140](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/140))
-  - a signed bundle manifest with a SHA-256 per file and an Ed25519 envelope.
-  For "did this bundle come from who it claims", use that. OKFX seals a document
-  in place because a pin has to travel inside the document that declares it.
-- **[okf-skills](https://github.com/scaccogatto/okf-skills)** - the Claude Code
-  toolkit for authoring, validating and visualising plain OKF bundles. OKFX's
-  plugin follows its packaging pattern and does not duplicate its scope: use
-  okf-skills to author OKF, OKFX to add derivation and sealing on top.
+  - a signed bundle manifest, SHA-256 per file inside an Ed25519 envelope. For
+  "did this bundle come from who it claims", use that. OKFX seals a document in
+  place because a pin has to travel inside the document that declares it. The two
+  compose.
 
-Related upstream threads:
+Toolchains worth knowing about, none of which overlap OKFX's three families:
+
+- **[okf-skills](https://github.com/scaccogatto/okf-skills)** - Claude Code
+  plugin, agent skills and a GitHub Action for authoring, validating and
+  visualising plain OKF. OKFX's plugin follows its packaging pattern.
+- **[serradura/okf](https://github.com/serradura/okf)** - the most complete
+  ecosystem: Ruby gem, CLI, MCP server, TUI, and both a live and a static graph
+  viewer.
+- **[kiso](https://github.com/oak-invest/kiso)** - bundles to static sites, plus
+  an MCP server.
+- Conformance and linting: **[okf-conformance](https://github.com/Sudhakaran88/okf-conformance)**,
+  **[okf-lint](https://github.com/thisismydesign/okf-lint)**. Both check the spec;
+  neither lets a document declare its own rules.
+- Editors and readers: **[okf-studio](https://github.com/saschb2b/okf-studio)**,
+  **[OnyxWriter](https://github.com/activetwist/OnyxWriter)**,
+  **[OWOX Model Canvas](https://github.com/OWOX/models)**.
+- Obsidian: **[okf-enforcer](https://github.com/MartinForReal/okf-enforcer)** and
+  several others.
+
+### On the graph viewer
+
+`okfx graph` exists despite the mature viewers above, because every one of them -
+including Google's own - builds edges from markdown links and has no notion of
+derivation. None can draw an `extends` edge or show you a concept as-written
+beside the same concept resolved. That is the whole reason this one exists; for
+everything else those viewers do better, use them.
+
+### Upstream threads
+
 [#96](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/96)
 (agent-routing hints),
 [#148](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/148) /
@@ -180,13 +323,24 @@ Related upstream threads:
 [#77](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/77)
 (an ignore file),
 [#120](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/120)
-(stable IDs and a rationale trail).
+(stable IDs and a rationale trail),
+[#166](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/166)
+(a community tools section in the README).
+<!-- TODO: Tur EP-0120 (memory mapped onto OKF directories, Merkle seals over the
+     tree). No public source found; add the bullet once there is a link to cite. -->
 
 ## Why this is not in core OKF
 
 Short answer: derivation may belong there, and the other two probably do not.
+Core names derivation and defers it - OKF §5.1 puts "an explicit external
+`derived_from`" out of scope for v0.2 - so `extends` fills a gap core has
+acknowledged rather than one it overlooked.
+
 The long answer, including the conditions under which each family should be
-upstreamed or abandoned, is in [`docs/rationale.md`](docs/rationale.md).
+upstreamed or abandoned, is in [`docs/rationale.md`](docs/rationale.md). A draft
+of the upstream discussion is in
+[`docs/upstream-discussion.md`](docs/upstream-discussion.md); it has not been
+posted.
 
 ## Contributing
 
@@ -195,4 +349,6 @@ run with `uv run pytest`.
 
 ## Licence
 
-Apache 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+Apache 2.0, the same as OKF. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). The
+viewer embeds Cytoscape.js and marked, both MIT; their licences ship alongside
+them in [`src/okfx/static/vendor/`](src/okfx/static/vendor).

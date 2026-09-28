@@ -24,7 +24,11 @@ jobs:
           "reference-agent @ git+https://github.com/GoogleCloudPlatform/knowledge-catalog@8cf3abaf1ee3d53a12f981cc0ed83d6ffec775e1#subdirectory=okf"
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      # Nothing in pytest parses the viewer's page script, so syntax is checked
+      # here. node is preinstalled on ubuntu-latest.
+      - run: node --check src/okfx/static/graph.js
       - env:
           OKFX_REQUIRE_REFERENCE: "1"
         run: uv run pytest -q
       - run: uv run okfx check examples/acme --allow-validators
+      - run: uv run okfx graph examples/acme -o /tmp/graph.html
