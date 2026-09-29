@@ -32,3 +32,29 @@ jobs:
         run: uv run pytest -q
       - run: uv run okfx check examples/acme --allow-validators
       - run: uv run okfx graph examples/acme -o /tmp/graph.html
+      # The viewer's assets are data files, so no import error catches their
+      # absence: a wheel missing them installs fine and fails at first use. A
+      # .gitignore pattern shipped exactly that once, hence this check.
+      - run: uv build --wheel
+      - name: the wheel carries the viewer's assets
+        run: |
+          uv run python - <<'EOF'
+          import glob, sys, zipfile
+          wheel = sorted(glob.glob("dist/*.whl"))[-1]
+          names = set(zipfile.ZipFile(wheel).namelist())
+          want = {
+              "okfx/templates/graph.html",
+              "okfx/static/graph.css",
+              "okfx/static/graph.js",
+              "okfx/static/vendor/cytoscape.min.js",
+              "okfx/static/vendor/marked.min.js",
+              "okfx/static/vendor/cytoscape.LICENSE.txt",
+              "okfx/static/vendor/marked.LICENSE.txt",
+          }
+          missing = sorted(want - names)
+          if missing:
+              sys.exit(f"{wheel} is missing: {', '.join(missing)}")
+          print(f"{wheel}: all viewer assets present")
+          EOF
+      - name: the installed wheel actually runs
+        run: uvx --from "$(ls dist/*.whl)" okfx graph examples/acme -o /tmp/installed.html

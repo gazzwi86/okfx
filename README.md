@@ -433,7 +433,7 @@ sealed = seal(resolved)  # a resolved document can be sealed in turn
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/gazzwi86/okfx
-    rev: v0.3.0
+    rev: v0.3.1
     hooks:
       - id: okfx-check
 ```
