@@ -67,8 +67,28 @@ open graph.html      # macOS; xdg-open on Linux, start on Windows
 ```
 
 That is one self-contained HTML file. It works offline, from a `file://` URL,
-with nothing fetched from the network. Toggle **As written / Resolved** to watch
-the overlay gain everything it inherits.
+with nothing fetched from the network.
+
+Click a concept and the panel shows what the CLI would tell you about it:
+
+- A **Checks** list - OKF conformance, the integrity seal, the base and its pin,
+  and the validators - each marked pass, fail or not-applicable, with the reason.
+  A concept with a failing check is drawn red in the graph.
+- The **whole document**, frontmatter and all, under *Show the merged file*. In the
+  **Resolved** state that is the file the base and every overlay add up to, which
+  is the one thing you cannot see by opening any single file in an editor.
+
+Toggle **As written / Resolved** to watch a fourteen-line overlay become a
+complete metric.
+
+Validators are only executed if you ask, since they are code from the bundle:
+
+```shell
+uvx --from . okfx graph examples/acme -o graph.html --allow-validators
+```
+
+Without that flag the page reports them as declared but not run, which is the same
+posture `okfx check` takes.
 
 Worth being precise about what needs installing, since "nothing to install" is
 easy to overclaim. *Reading* an OKF or OKFX bundle needs nothing: the files are
@@ -413,9 +433,16 @@ Toolchains worth knowing about, none of which overlap OKFX's three families:
 
 `okfx graph` exists despite the mature viewers above, because every one of them -
 including Google's own - builds edges from markdown links and has no notion of
-derivation. None can draw an `extends` edge or show you a concept as-written
-beside the same concept resolved. That is the whole reason this one exists; for
-everything else those viewers do better, use them.
+derivation. None can draw an `extends` edge, show a concept as-written beside the
+same concept resolved, or report whether its seal, its pin and its validators
+actually hold. That is the whole reason this one exists; for everything else those
+viewers do better, use them.
+
+It renders a broken bundle rather than refusing to draw one. A missing base, a
+seal that no longer matches, a stale pin or a failing validator all appear as a
+flagged node with the reason attached, because a viewer is most useful in exactly
+the state where something is wrong. The page also carries no local filesystem
+paths, so it stays shareable.
 
 ### Upstream threads
 

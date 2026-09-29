@@ -206,14 +206,28 @@ Now check and look:
 
 ```shell
 uv run okfx check examples/acme --allow-validators
-uv run okfx graph examples/acme -o graph.html
+uv run okfx graph examples/acme -o graph.html --allow-validators
 open graph.html      # macOS; xdg-open on Linux, start on Windows
 ```
 
-Four overlays now point at the base with blue `extends` edges. Click the SG node,
-flip **As written / Resolved**, and watch it fill in. Then use the tag chips and the
-type filter - `Attested Computation`, `Metric`, `Playbook`, `Policy`, `Reference` -
-and the edge toggles, which separate derivation from citation from plain links.
+Four overlays now point at the base with blue `extends` edges. Click the SG node
+and read the panel:
+
+- **Checks** - conformance, seal, base and validators, each pass, fail or
+  not-applicable. The SG overlay is unsealed and unpinned, so two are skipped; the
+  base is both, so two pass. `--allow-validators` is what turns the validator row
+  from "declared, not run" into a real verdict.
+- **Whole document, as written** - the file you just wrote, and nothing more.
+
+Now flip **As written / Resolved** and open the document section again. It is the
+complete metric: title, tags, trust signals, `# Definition`, `resolved_from`, and
+your `# Audit`. That merged file exists nowhere on disk - it is what a consumer
+following `extends` would read.
+
+Then try the tag chips, the type filter - `Attested Computation`, `Metric`,
+`Playbook`, `Policy`, `Reference` - and the edge toggles, which separate derivation
+from citation from plain links. Search matches body text too, so `dublin` finds the
+EU overlay.
 
 Clean up:
 

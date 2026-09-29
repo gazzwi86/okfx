@@ -146,3 +146,27 @@ footer {
 .key.extends { border-top: 2px solid var(--extends); }
 .key.source { border-top: 2px dashed var(--source); }
 .key.link { border-top: 2px dotted var(--link); }
+
+.checks { list-style: none; padding: 0; }
+
+.check {
+  display: grid;
+  grid-template-columns: 16px auto;
+  gap: 2px 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.check:last-child { border-bottom: none; }
+.check .mark { font-weight: 700; line-height: 1.4; }
+.check.pass .mark { color: #1a7f37; }
+.check.fail .mark { color: var(--warn); }
+.check.skip .mark { color: var(--muted); }
+.check-name { font-weight: 500; }
+.check-detail { grid-column: 2; color: var(--muted); font-size: 12px; }
+.check.fail .check-detail { color: var(--warn); }
+
+#detail details { font-size: 12px; }
+#detail summary { cursor: pointer; color: var(--extends); }
+#detail details pre { margin-top: 8px; max-height: 420px; overflow: auto; }
+#detail details code { white-space: pre; }

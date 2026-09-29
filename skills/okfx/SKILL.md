@@ -127,13 +127,20 @@ that tells anyone the derived policy changed meaning.
 ## Showing someone the bundle
 
 ```bash
-okfx graph <bundle-dir> -o graph.html
+okfx graph <bundle-dir> -o graph.html                      # validators reported, not run
+okfx graph <bundle-dir> -o graph.html --allow-validators   # validators actually run
 ```
 
 One self-contained HTML file: no network at view time, so it can be attached or
-committed. Use it when the user asks what derives from what, or wants to see the
-effect of resolution - the **As written / Resolved** toggle shows each concept
-before and after its chain is merged. Do not hand-build a graph; this is it.
+committed. Use it when the user asks what derives from what, wants to see the
+effect of resolution, or wants to know whether a bundle is sound. Clicking a
+concept shows a **Checks** list (conformance, seal, base and pin, validators) and
+the whole merged document, frontmatter included. The **As written / Resolved**
+toggle shows each concept before and after its chain is merged. Do not hand-build
+a graph or hand-assemble a resolved file to show someone; this is it.
+
+`--allow-validators` runs code from the bundle, so the rule above applies: ask
+first. Without it the page says "declared, not run" rather than implying a pass.
 
 ## Writing a validator
 

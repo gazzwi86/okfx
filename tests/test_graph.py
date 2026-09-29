@@ -15,8 +15,9 @@ from pathlib import Path
 import pytest
 from conftest import write
 
-from okfx import graph
+from okfx import graph, integrity
 from okfx.cli import main
+from okfx.document import Document
 
 
 def payload(html: str) -> dict:
@@ -179,3 +180,77 @@ def test_a_link_outside_the_bundle_does_not_become_an_edge(bundle: Path, tmp_pat
 def test_concept_id_refuses_a_path_outside_the_root(tmp_path: Path):
     assert graph.concept_id(tmp_path / "x" / "a.md", tmp_path / "x") == "a"
     assert graph.concept_id(tmp_path / "other" / "a.md", tmp_path / "x") is None
+
+
+def states(node: dict) -> dict[str, str]:
+    return {check["name"]: check["state"] for check in node["checks"]}
+
+
+def test_a_sealed_pinned_base_reports_every_check(example_bundle: Path):
+    built = graph.build(example_bundle, allow_validators=True)
+    base = next(n["data"] for n in built["nodes"] if n["data"]["id"] == "metrics/churn-rate")
+    assert states(base) == {
+        "OKF conformance": "pass",
+        "Integrity seal": "pass",
+        "Base": "skip",
+        "Validators": "pass",
+    }
+    overlay = next(n["data"] for n in built["nodes"] if n["data"]["id"] == "metrics/churn-rate.au")
+    assert states(overlay)["Base"] == "pass"
+    assert not overlay["failing"]
+
+
+def test_validators_are_not_run_unless_asked(example_bundle: Path):
+    built = graph.build(example_bundle)
+    assert built["validators_run"] is False
+    base = next(n["data"] for n in built["nodes"] if n["data"]["id"] == "metrics/churn-rate")
+    validators = next(c for c in base["checks"] if c["name"] == "Validators")
+    assert validators["state"] == "skip"
+    assert "not run" in validators["detail"]
+
+
+def test_a_failing_validator_is_reported_on_the_node(bundle: Path):
+    (bundle / "v.py").write_text(
+        "def validate(f, b):\n    return ['the rule was broken']\n", encoding="utf-8"
+    )
+    write(bundle / "a.md", "type: Policy\nvalidation:\n  - resource: /v.py\n    description: A.")
+    node = next(n["data"] for n in graph.build(bundle, allow_validators=True)["nodes"])
+    assert node["failing"] is True
+    assert next(c for c in node["checks"] if c["name"] == "Validators")["state"] == "fail"
+
+
+def test_a_broken_base_seal_is_drawn_rather_than_aborting(bundle: Path):
+    """A viewer that refuses to render a broken bundle is useless when it matters."""
+    base = write(bundle / "base.md", "type: Policy", "# Scope\n\nAll.\n")
+    sealed = integrity.seal(Document.load(base))
+    base.write_text(sealed.serialize(), encoding="utf-8")
+    base.write_text(base.read_text().replace("All.", "Some."), encoding="utf-8")
+    write(bundle / "over.md", "type: Policy\nextends: {concept: base}")
+    built = graph.build(bundle)
+    by_id = {n["data"]["id"]: n["data"] for n in built["nodes"]}
+    assert states(by_id["base"])["Integrity seal"] == "fail"
+    assert states(by_id["over"])["Base"] == "fail"
+    assert by_id["over"]["failing"] and by_id["base"]["failing"]
+
+
+def test_the_resolved_view_carries_the_whole_merged_document(example_bundle: Path):
+    """What the reader wants to see: the file the base and overlay add up to."""
+    built = graph.build(example_bundle)
+    overlay = next(n["data"] for n in built["nodes"] if n["data"]["id"] == "metrics/churn-rate.eu")
+    assert "title: Churn Rate" not in overlay["raw"]["frontmatter_text"]
+    assert "title: Churn Rate" in overlay["resolved"]["frontmatter_text"]
+    assert "resolved_from" in overlay["resolved"]["frontmatter_text"]
+    assert "# Definition" in overlay["resolved"]["body"]
+    assert "# Definition" not in overlay["raw"]["body"]
+
+
+def test_the_page_carries_no_local_filesystem_paths(bundle: Path, tmp_path: Path):
+    """The output is meant to be shared, so an error must not name someone's home."""
+    write(bundle / "a.md", "type: Policy\nextends: {concept: nope}")
+    out = tmp_path / "graph.html"
+    graph.generate(bundle, out)
+    html = out.read_text(encoding="utf-8")
+    assert str(bundle.resolve()) not in html
+    node = next(n["data"] for n in graph.build(bundle)["nodes"])
+    assert "does not exist" in node["error"]
+    assert str(bundle.resolve()) not in node["error"]

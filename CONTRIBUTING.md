@@ -69,8 +69,11 @@ uv run okfx graph examples/acme -o /tmp/g.html && open /tmp/g.html
 ```
 
 Open the file after any change to the page. Check the **As written / Resolved**
-toggle, a tag chip, the search box, clicking a node, and a `#concept-id` fragment
-in the URL. Then confirm it still works with the network off - that is the
+toggle, a tag chip, the search box, clicking a node, the **Checks** rows and the
+whole-document disclosure, and a `#concept-id` fragment in the URL. Generate once
+over a deliberately broken bundle too - a stale pin or a tampered seal - since
+rendering the broken case is the viewer's main job and the happy path will not
+exercise it. Then confirm it still works with the network off - that is the
 property the vendored libraries exist for, and a `<script src="https://...">` that
 creeps in will look fine on a developer machine and fail for everyone else.
 `tests/test_graph.py` asserts no remote references survive into the output, so it

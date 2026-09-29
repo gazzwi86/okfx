@@ -169,14 +169,21 @@ def _cmd_check(args: argparse.Namespace) -> int:
 def _cmd_graph(args: argparse.Namespace) -> int:
     bundle = Path(args.path)
     out_path = Path(args.output)
-    result = graph.generate(bundle, out_path)
+    allow = validation.allowed(args.allow_validators)
+    result = graph.generate(bundle, out_path, allow_validators=allow, timeout=args.timeout)
     size_kb = out_path.stat().st_size // 1024
     print(
         f"{out_path}: {len(result['nodes'])} concepts, {len(result['edges'])} edges, {size_kb} KB"
     )
-    unresolved = [n["data"]["id"] for n in result["nodes"] if n["data"]["error"]]
-    for node_id in unresolved:
-        print(f"     {node_id} does not resolve; drawn but flagged", file=sys.stderr)
+    if not allow:
+        print("     validators shown as declared but not run; --allow-validators executes them")
+    failed = [
+        node["data"]["id"]
+        for node in result["nodes"]
+        if any(check["state"] == "fail" for check in node["data"]["checks"])
+    ]
+    for node_id in failed:
+        print(f"     {node_id} has a failing check; drawn and flagged", file=sys.stderr)
     return 0
 
 
@@ -226,6 +233,12 @@ def build_parser() -> argparse.ArgumentParser:
     viz = sub.add_parser("graph", help="write a self-contained interactive HTML view of a bundle")
     viz.add_argument("path", help="the bundle directory, or a file inside one")
     viz.add_argument("-o", "--output", default="graph.html")
+    viz.add_argument(
+        "--allow-validators",
+        action="store_true",
+        help="execute declared validators so the page can report pass or fail",
+    )
+    viz.add_argument("--timeout", type=float, default=validation.DEFAULT_TIMEOUT)
     viz.set_defaults(func=_cmd_graph)
 
     return parser

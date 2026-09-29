@@ -59,7 +59,10 @@
           "border-color": "#7e8ba3"
         }
       },
-      { selector: 'node[?error]', style: { "border-color": "#b3261e", "border-style": "dashed" } },
+      {
+        selector: "node[?failing]",
+        style: { "border-color": "#b3261e", "border-style": "dashed", "background-color": "#b3261e" }
+      },
       { selector: "node:selected", style: { "border-color": "#1f6feb", "width": 24, "height": 24 } },
       { selector: "node.dim", style: { "opacity": 0.12 } },
       {
@@ -180,6 +183,18 @@
     return byId[id] ? id : null;
   }
 
+  var MARKS = { pass: "✓", fail: "✗", skip: "–" };
+
+  /* The document as a consumer would read it: frontmatter fence and body. In the
+     resolved state this is the file the base and every overlay add up to, which
+     is the thing you cannot see by opening any single file in an editor. */
+  function wholeDocument(v) {
+    var parts = [];
+    if (v.frontmatter_text) parts.push("---\n" + v.frontmatter_text + "\n---\n");
+    parts.push(v.body || "");
+    return parts.join("\n");
+  }
+
   function section(heading) {
     var s = element("section");
     s.appendChild(element("h3", null, heading));
@@ -251,6 +266,38 @@
       checks.appendChild(conceptLinks(v.validation));
       panel.appendChild(checks);
     }
+
+    if (node.checks && node.checks.length) {
+      var checksSection = section("Checks");
+      var list = element("ul", "checks");
+      node.checks.forEach(function (check) {
+        var item = element("li", "check " + check.state);
+        item.appendChild(element("span", "mark", MARKS[check.state] || "?"));
+        item.appendChild(element("span", "check-name", check.name));
+        if (check.detail) item.appendChild(element("span", "check-detail", check.detail));
+        list.appendChild(item);
+      });
+      checksSection.appendChild(list);
+      panel.appendChild(checksSection);
+    }
+
+    var sourceSection = section(
+      state === "resolved" ? "Whole document, resolved" : "Whole document, as written"
+    );
+    var details = element("details");
+    var summary = element(
+      "summary",
+      null,
+      state === "resolved"
+        ? "Show the merged file, frontmatter and all"
+        : "Show the file as it sits on disk"
+    );
+    details.appendChild(summary);
+    var pre = element("pre");
+    pre.appendChild(element("code", null, wholeDocument(v)));
+    details.appendChild(pre);
+    sourceSection.appendChild(details);
+    panel.appendChild(sourceSection);
 
     var bodySection = section(state === "resolved" ? "Body, merged" : "Body, as written");
     var rendered = element("div");
