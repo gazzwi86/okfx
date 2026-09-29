@@ -41,7 +41,10 @@ def test_every_concept_in_the_bundle_becomes_a_node(example_bundle: Path):
         "metrics/churn-rate",
         "metrics/churn-rate.eu",
         "metrics/churn-rate.au",
+        "metrics/churn-rate.us",
         "projects/billing/churn-rate",
+        "computations/churn-rate",
+        "references/skills/run-on-bq",
     }
 
 
@@ -50,14 +53,21 @@ def test_extends_edges_follow_both_spellings(example_bundle: Path):
     assert edges_of(graph.build(example_bundle), "extends") == {
         ("metrics/churn-rate.eu", "metrics/churn-rate"),
         ("metrics/churn-rate.au", "metrics/churn-rate"),
+        ("metrics/churn-rate.us", "metrics/churn-rate"),
         ("projects/billing/churn-rate", "metrics/churn-rate.eu"),
     }
 
 
 def test_sources_and_body_links_are_their_own_edge_kinds(example_bundle: Path):
     built = graph.build(example_bundle)
-    assert edges_of(built, "source") == {("metrics/churn-rate", "policies/retention")}
-    assert edges_of(built, "link") == {("metrics/churn-rate", "policies/retention")}
+    assert edges_of(built, "source") == {
+        ("metrics/churn-rate", "policies/retention"),
+        ("computations/churn-rate", "metrics/churn-rate"),
+    }
+    assert edges_of(built, "link") == {
+        ("metrics/churn-rate", "policies/retention"),
+        ("computations/churn-rate", "metrics/churn-rate"),
+    }
 
 
 def test_a_node_carries_both_the_written_and_the_resolved_state(example_bundle: Path):
@@ -73,7 +83,13 @@ def test_a_node_carries_both_the_written_and_the_resolved_state(example_bundle: 
 
 def test_types_and_tags_are_offered_for_filtering(example_bundle: Path):
     built = graph.build(example_bundle)
-    assert built["types"] == ["Metric", "Playbook", "Policy"]
+    assert built["types"] == [
+        "Attested Computation",
+        "Metric",
+        "Playbook",
+        "Policy",
+        "Reference",
+    ]
     assert "kpi" in built["tags"]
 
 
@@ -145,3 +161,21 @@ def test_the_cli_writes_the_file_and_accepts_a_file_inside_a_bundle(
 def test_the_packaged_assets_are_present(asset: str):
     """These ship inside the wheel; a missing one is a runtime failure, not an import error."""
     assert (Path(graph.__file__).parent / asset).is_file()
+
+
+def test_a_link_outside_the_bundle_does_not_become_an_edge(bundle: Path, tmp_path: Path):
+    """A bare filename fallback would let ../outside/churn-rate.md impersonate a concept."""
+    outside = tmp_path.parent / "outside"
+    outside.mkdir(exist_ok=True)
+    (outside / "churn-rate.md").write_text("---\ntype: Metric\n---\n\n# Elsewhere\n", "utf-8")
+    write(bundle / "churn-rate.md", "type: Metric", "# Definition\n\nMine.\n")
+    relative = Path("..") / "outside" / "churn-rate.md"
+    write(bundle / "a.md", "type: Policy", f"# Scope\n\nSee [it]({relative.as_posix()}).\n")
+    built = graph.build(bundle)
+    assert edges_of(built, "link") == set()
+    assert {n["data"]["id"] for n in built["nodes"]} == {"churn-rate", "a"}
+
+
+def test_concept_id_refuses_a_path_outside_the_root(tmp_path: Path):
+    assert graph.concept_id(tmp_path / "x" / "a.md", tmp_path / "x") == "a"
+    assert graph.concept_id(tmp_path / "other" / "a.md", tmp_path / "x") is None

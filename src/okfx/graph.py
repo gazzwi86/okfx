@@ -37,12 +37,17 @@ def trust_tier(frontmatter: dict[str, Any]) -> str:
     return "machine-confirmed"
 
 
-def concept_id(path: Path, root: Path) -> str:
-    """The bundle-relative id of a concept: its path from the root, minus `.md`."""
+def concept_id(path: Path, root: Path) -> str | None:
+    """The bundle-relative id of a concept: its path from the root, minus `.md`.
+
+    None when the path is outside the bundle. Returning the bare filename instead
+    would let `../../elsewhere/churn-rate.md` present as the id `churn-rate` and
+    draw an edge to whatever real concept happens to own that name.
+    """
     try:
         relative = path.resolve().relative_to(root.resolve())
     except ValueError:
-        return path.stem
+        return None
     return relative.as_posix()[: -len(".md")]
 
 
@@ -84,8 +89,11 @@ def _link_targets(body: str, doc_path: Path, root: Path) -> list[str]:
             continue
         base = root if reference.startswith("/") else doc_path.parent
         target = (base / reference.lstrip("/")).resolve()
-        if target.is_file():
-            targets.append(concept_id(target, root))
+        if not target.is_file():
+            continue
+        node_id = concept_id(target, root)
+        if node_id is not None:
+            targets.append(node_id)
     return targets
 
 

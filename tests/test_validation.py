@@ -110,3 +110,16 @@ def test_the_example_validator_runs_against_the_resolved_document(example_projec
     failures = validation.run(doc, allow=True)
     assert len(failures) == 1
     assert "must be a positive integer" in failures[0].message
+
+
+def test_the_example_validator_checks_currency_shape_not_an_allowlist(example_project: Path):
+    """A hardcoded list of "our" currencies rejects the next region someone adds."""
+    doc = resolve(Document.load(example_project))
+    for accepted in ("EUR", "SGD", "ZAR"):
+        doc.frontmatter["rules"]["currency_default"] = accepted
+        assert validation.run(doc, allow=True) == []
+    for refused in ("EURO", "usd", "$", 42):
+        doc.frontmatter["rules"]["currency_default"] = refused
+        failures = validation.run(doc, allow=True)
+        assert len(failures) == 1, refused
+        assert "ISO 4217" in failures[0].message

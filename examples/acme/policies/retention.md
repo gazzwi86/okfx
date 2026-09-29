@@ -18,15 +18,11 @@ target_context:
 rules:
   currency_default: USD
   audit_threshold: 10000
-validation:
-- resource: /references/validators/churn_rate.py
-  description: Audit thresholds are positive integers and currencies are ISO 4217
-    codes.
 integrity:
   algorithm: sha256
-  value: f4f127378ea5371f696ed72ea3073a66b3b4250bf4ea56df4eabc8379faa94e6
+  value: 2ed217f8f8e3ac8fe0415a7e1adbe5bbf78468a9449a32f6d0afe11e122bfa75
   sealed_by: human:jsmith
-  sealed_at: '2026-09-28T04:43:14Z'
+  sealed_at: '2026-09-29T04:44:02Z'
 ---
 
 # Scope

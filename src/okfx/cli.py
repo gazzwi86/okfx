@@ -15,13 +15,24 @@ RESERVED = {"index.md", "log.md"}
 
 
 def concept_paths(targets: list[Path]) -> list[Path]:
-    """Every concept document under the given files or directories."""
+    """Every concept document under the given files or directories, each once.
+
+    Deduplicated by resolved path: `okfx verify bundle/ bundle/a.md` names the
+    same document twice, and reporting it twice would misstate what was checked.
+    """
     found: list[Path] = []
+    seen: set[Path] = set()
     for target in targets:
         if target.is_dir():
-            found.extend(p for p in sorted(target.rglob("*.md")) if p.name not in RESERVED)
+            candidates = [p for p in sorted(target.rglob("*.md")) if p.name not in RESERVED]
         else:
-            found.append(target)
+            candidates = [target]
+        for path in candidates:
+            key = path.resolve()
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(path)
     return found
 
 

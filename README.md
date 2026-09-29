@@ -25,7 +25,10 @@ mechanical rather than a judgement made at retrieval time.
 
 ## Sixty seconds
 
-You do not need to install anything. This runs the tool once and throws it away:
+**Prerequisites.** Python 3.11 or newer, and [uv](https://docs.astral.sh/uv/)
+(`curl -LsSf https://astral.sh/uv/install.sh | sh`, or `brew install uv`). `uvx`
+ships with uv and runs a command without installing it, in a throwaway
+environment - so nothing below leaves anything behind on your machine.
 
 ```shell
 git clone https://github.com/gazzwi86/okfx && cd okfx
@@ -59,12 +62,29 @@ Nothing was copied to make that happen.
 Then look at the bundle as a graph:
 
 ```shell
-uvx --from . okfx graph examples/acme -o graph.html && open graph.html
+uvx --from . okfx graph examples/acme -o graph.html
+open graph.html      # macOS; xdg-open on Linux, start on Windows
 ```
 
 That is one self-contained HTML file. It works offline, from a `file://` URL,
 with nothing fetched from the network. Toggle **As written / Resolved** to watch
 the overlay gain everything it inherits.
+
+Then confirm the whole thing actually works on your machine:
+
+```shell
+uv sync
+uv run pytest
+```
+
+Expect `101 passed, 1 skipped` - the count grows as tests are added, so what
+matters is zero failures. The skip is the OKF conformance suite, which needs
+Google's reference implementation; it is optional, and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) says how to install it.
+
+**Next:** [`docs/try-it.md`](docs/try-it.md) is a fifteen-minute guided tour that
+has you change an inherited value, add a third region, break a pin on purpose and
+watch the build fail. Do that before deciding whether this is useful to you.
 
 ## How the merge works
 
@@ -119,9 +139,12 @@ suite checks:
 |------|-------|
 | `metrics/churn-rate.md` | the base metric, sealed, declaring one validator |
 | `metrics/churn-rate.eu.md` | the article's overlay, character for character |
+| `metrics/churn-rate.us.md` | a region that inherits the base currency rather than restating it |
 | `metrics/churn-rate.au.md` | the same overlay done properly: pinned base, own provenance |
 | `projects/billing/churn-rate.md` | three levels down, with its own `id` |
 | `policies/retention.md` | the policy the metric cites via `sources` |
+| `computations/churn-rate.md` | an OKF §10 Attested Computation - see below |
+| `references/` | the validator, the attester, and the runner's instructions |
 
 Three deliberate details. The base's `sources[].resource` is bundle-relative and
 its footnote is a real markdown link, so the provenance edge actually resolves in
@@ -139,6 +162,22 @@ human-reviewed on the strength of a review of the *base*. That is a real hazard,
 documented in [`EXTENSION.md`](EXTENSION.md) §4.5. The AU overlay is the same
 document written the way you should write one: its own `generated`, and a pinned
 base. Compare the two.
+
+### The attested computation
+
+`computations/churn-rate.md` carries the sanctioned SQL for the metric, declares
+`month` as the single parameter an agent may fill, and names a deterministic
+attester. The agent supplies a value; it never writes the query. The attester
+re-derives the binding from the receipt and refuses anything else, so a model that
+quietly drops a `WHERE` clause is caught by code rather than by review.
+
+This is core OKF (§10), not OKFX - it is in the bundle because it is the half of
+the format that makes numbers trustworthy, and a bundle demonstrating inheritance
+without it would understate what OKF is for. Two honest limits: OKF §12 defers the
+attester ABI and receipt format to a future revision, so the function signature is
+this bundle's own convention; and **OKFX does not execute attesters**. `okfx
+validate` runs the separate `validation` family. `tests/test_example_attester.py`
+exercises the attester directly, including the agent-wrote-its-own-query case.
 
 ## What else is in here
 
@@ -164,6 +203,55 @@ declares. This generalises OKF §10's `attester`, which checks one receipt from
 one sanctioned computation; a validator checks a document of any type. Read
 [validators are code](#validators-are-code) before running any.
 
+## What this is for
+
+Two patterns, and OKFX is aimed squarely at the seam between them.
+
+**An LLM wiki** - the pattern named in
+[Andrej Karpathy's `llm-wiki.md` gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f):
+a knowledge base an agent maintains as it works, so the next session does not start
+from zero. OKF was designed with that in mind, and it is where the trust and
+lifecycle families earn their keep - an agent that writes freely needs `generated`
+versus `verified` to stay distinguishable, and `stale_after` so its own output
+expires.
+
+Inheritance matters here specifically because an agent accumulating context is the
+thing most likely to produce the three-document problem. Left alone it writes a
+fourth near-duplicate rather than deriving from the three that exist. `extends`
+gives it somewhere to put the delta, and `okfx graph` lets a human see what the
+agent built without reading every file.
+
+The gist's third operation is *lint* - a periodic sweep for contradictions, stale
+claims and orphan pages. `okfx check` is a narrow, deterministic slice of exactly
+that: it will not judge whether two pages contradict each other, but it does fail
+the build when a document derives from a base that has since changed, which is the
+most common way a wiki starts contradicting itself. That is the flywheel - context
+accumulates, and something mechanical stops it turning into sediment.
+
+**Alongside an ontology, not instead of one.** An ontology encodes rules, axioms
+and hard edges, and does it far better than frontmatter ever will. What it cannot
+hold is why a rule exists, which parts of it people quietly ignore, and the local
+interpretation that is technically a deviation. That is exactly what an OKF concept
+body is good at.
+
+The two compose rather than compete. A concept can carry the ontology term it
+corresponds to as an ordinary producer-defined key - OKF §4.1 permits any key and
+§11 requires consumers to preserve it:
+
+```yaml
+rules:
+  currency_default: EUR
+ontology:
+  entity: fibo:CustomerChurnRate       # the rigid definition lives over there
+```
+
+Because that key is just frontmatter, it inherits like everything else: state the
+mapping once on a base and every regional overlay carries it. OKFX does nothing
+with the key, deliberately - if you want typed, validated bindings to schema.org,
+DCAT or PROV-O rather than a string, [LOKF](https://github.com/nicholsn/lokf) is
+built for exactly that and is the better tool. The point is only that nothing here
+forces a choice between the two.
+
 ## Install
 
 Python 3.11+. Not on PyPI.
@@ -184,6 +272,11 @@ okfx verify   examples/acme
 okfx validate examples/acme --allow-validators
 okfx check    examples/acme --allow-validators          # the CI entrypoint
 ```
+
+`--allow-validators` executes Python that came from the bundle, with your
+privileges. It is safe on `examples/acme`, which you can read. Read
+[validators are code](#validators-are-code) before passing it to a bundle you did
+not write.
 
 `check` runs the whole pipeline over a bundle - conformance, seals, resolution,
 validators - and exits non-zero on the first thing that fails. As a library:

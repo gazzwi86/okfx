@@ -137,7 +137,9 @@
     cy.style().update();
     document.getElementById("stats").textContent =
       shown + " of " + cy.nodes().length + " concepts, " + cy.edges().length + " edges";
-    if (selected) showDetail(selected);
+    // Deliberately not redrawing the detail panel: filtering cannot change the
+    // selected concept's own content, and rebuilding it per keystroke re-parses
+    // its markdown and throws away the reader's scroll position.
   }
 
   /* ---- detail panel --------------------------------------------------- */
@@ -153,6 +155,29 @@
     }
     if (node.error) wrap.appendChild(element("span", "badge error", "does not resolve"));
     return wrap;
+  }
+
+  /* Resolve a markdown link to a concept id, by the same rule graph.py uses:
+     a leading slash means from the bundle root, anything else is relative to the
+     linking document's own directory. Getting this wrong does not error, it
+     quietly opens the wrong concept, so the two implementations have to agree. */
+  function linkTarget(href, fromId) {
+    var path = href.replace(/#.*$/, "").replace(/\.md$/, "");
+    if (!path) return null;
+    var segments;
+    if (path.charAt(0) === "/") {
+      segments = path.slice(1).split("/");
+    } else {
+      segments = fromId.split("/").slice(0, -1).concat(path.split("/"));
+    }
+    var stack = [];
+    segments.forEach(function (segment) {
+      if (segment === "" || segment === ".") return;
+      if (segment === "..") { stack.pop(); return; }
+      stack.push(segment);
+    });
+    var id = stack.join("/");
+    return byId[id] ? id : null;
   }
 
   function section(heading) {
@@ -237,11 +262,7 @@
         a.rel = "noopener noreferrer";
         return;
       }
-      var target = href.replace(/^\//, "").replace(/#.*$/, "").replace(/\.md$/, "");
-      var candidate = target.indexOf("/") === -1 && id.indexOf("/") !== -1
-        ? id.replace(/\/[^/]*$/, "/") + target
-        : target;
-      var resolvedId = byId[candidate] ? candidate : (byId[target] ? target : null);
+      var resolvedId = linkTarget(href, id);
       if (resolvedId) {
         a.addEventListener("click", function (event) {
           event.preventDefault();
@@ -307,6 +328,7 @@
       state = radio.value;
       cy.style().update();
       apply();
+      if (selected) showDetail(selected);
     });
   });
   document.getElementById("reset").addEventListener("click", function () {

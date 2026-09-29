@@ -4,7 +4,7 @@ from pathlib import Path
 
 from conftest import write
 
-from okfx.cli import main
+from okfx.cli import concept_paths, main
 
 
 def test_check_passes_on_the_example_bundle(example_bundle: Path):
@@ -113,3 +113,9 @@ def test_verify_over_a_bundle_still_fails_on_a_broken_seal(bundle: Path):
     path.write_text(path.read_text() + "\ntampered\n", encoding="utf-8")
     write(bundle / "plain.md", "type: Policy")
     assert main(["verify", str(bundle)]) == 1
+
+
+def test_a_document_named_twice_is_reported_once(bundle: Path):
+    path = write(bundle / "a.md", "type: Policy")
+    assert main(["seal", str(path)]) == 0
+    assert concept_paths([bundle, path]) == [path]

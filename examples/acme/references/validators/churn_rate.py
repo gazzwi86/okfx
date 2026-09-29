@@ -5,7 +5,13 @@ its company policy declares: the rule is part of the resolved frontmatter by the
 time the validator sees it.
 """
 
-_ISO_4217 = {"USD", "EUR", "GBP", "AUD", "JPY", "CAD", "CHF", "SEK", "NOK", "NZD"}
+import re
+
+# ISO 4217 alphabetic codes are three uppercase letters. Checking the shape rather
+# than an allowlist is deliberate: a hardcoded list of "the currencies we use"
+# rejects the next region someone adds, which teaches people to delete the check.
+# A real deployment would validate against the published code list.
+_ISO_4217 = re.compile(r"^[A-Z]{3}$")
 
 
 def validate(frontmatter, body):
@@ -17,7 +23,7 @@ def validate(frontmatter, body):
         failures.append(f"rules.audit_threshold must be a positive integer, got {threshold!r}")
 
     currency = rules.get("currency_default")
-    if currency is not None and currency not in _ISO_4217:
+    if currency is not None and not _ISO_4217.match(str(currency)):
         failures.append(f"rules.currency_default must be an ISO 4217 code, got {currency!r}")
 
     return failures
