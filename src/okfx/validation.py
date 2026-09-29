@@ -81,6 +81,7 @@ def run(
     root: Path | None = None,
     allow: bool = False,
     timeout: float = DEFAULT_TIMEOUT,
+    allow_outside: bool = False,
 ) -> list[Failure]:
     """Run every validator the (already resolved) document declares.
 
@@ -104,7 +105,13 @@ def run(
     failures: list[Failure] = []
     for entry in entries:
         resource = str(entry["resource"])
-        target = resolve_path(resource, doc_path, root)
+        target = resolve_path(
+            resource,
+            doc_path,
+            root,
+            field="validation.resource",
+            allow_outside=allow_outside,
+        )
         if not target.is_file():
             raise ValidationError(f"{doc.path}: validator does not exist: {target}")
         try:

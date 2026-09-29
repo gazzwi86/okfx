@@ -2,10 +2,11 @@
 
 **Status: draft. Not posted.**
 
-## There is no registry yet
+## How listing works today
 
-There is no official Google-run catalogue of third-party OKF tools, no form and
-no badge. The only live route is
+Google are moving toward cataloguing tools built outside their own repository, but
+the mechanism is still being settled: at the time of writing there is no registry to
+submit to, no form and no badge. The live route is
 [knowledge-catalog#166](https://github.com/GoogleCloudPlatform/knowledge-catalog/issues/166),
 an open, unmerged proposal to add a "Community & ecosystem tools" section to the
 repository README, with a draft list grouped by category (editors, agent skills,
@@ -17,8 +18,8 @@ So the realistic options, in order of cost:
 1. Comment on #166 with the entry, so it is in the list if and when it lands.
 2. Open a PR against the README adding to that draft's section, which only makes
    sense once a maintainer has signalled they want the section at all.
-3. Do nothing upstream and rely on the community lists, which is where discovery
-   actually happens today: `Albertchamberlain/Awesome-OKF`, `linyiru/awesome-okf`,
+3. Do nothing upstream and rely on the community lists, which is where most
+   discovery happens today: `Albertchamberlain/Awesome-OKF`, `linyiru/awesome-okf`,
    `McClawdDigital/awesome-okf`, and `okf.md/tools`. None are Google-affiliated.
 
 Option 1 costs one comment and is not presumptuous. Prefer it.

@@ -4,6 +4,8 @@ An independent extension to Google Cloud's Open Knowledge Format. Every OKFX
 document remains a valid OKF v0.2 document; every family here is optional.
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .document import Document, DocumentError, OKFXError
 from .integrity import IntegrityError, compute, seal, verify
 from .resolve import ResolveError, resolve
@@ -22,4 +24,9 @@ __all__ = [
     "seal",
     "verify",
 ]
-__version__ = "0.1.0"
+try:
+    # Read from the installed distribution rather than restating it here: the
+    # hand-written copy had already drifted three releases behind pyproject.toml.
+    __version__ = version("okfx")
+except PackageNotFoundError:  # running from a source tree that was never installed
+    __version__ = "0+unknown"

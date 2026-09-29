@@ -198,3 +198,22 @@ def test_a_concept_id_may_not_be_a_url(bundle: Path):
     overlay = write(bundle / "o.md", "type: Metric\nextends: {concept: 'https://x/y'}")
     with pytest.raises(ResolveError, match="bundle-relative concept id"):
         resolve(Document.load(overlay))
+
+
+def test_a_base_reached_by_dot_dot_is_refused(bundle: Path, tmp_path: Path):
+    """A bundle is the unit of trust; a `..` that walks out of it is not free."""
+    outside = tmp_path.parent / "outside.md"
+    outside.write_text("---\ntype: Policy\n---\n\n# Secret\n\nOut.\n", encoding="utf-8")
+    for spelling in ("concept: ../outside", "resource: ../outside.md"):
+        overlay = write(bundle / "a.md", f"type: Policy\nextends: {{{spelling}}}")
+        with pytest.raises(ResolveError, match="leaves the bundle"):
+            resolve(Document.load(overlay))
+        assert "Out." in resolve(Document.load(overlay), allow_outside=True).body
+
+
+def test_an_absolute_reference_cannot_escape_either(bundle: Path, tmp_path: Path):
+    """A leading slash means the bundle root, so `/../x` must not reach past it."""
+    (tmp_path.parent / "escape.md").write_text("---\ntype: Policy\n---\n", encoding="utf-8")
+    overlay = write(bundle / "a.md", "type: Policy\nextends: {resource: /../escape.md}")
+    with pytest.raises(ResolveError, match="leaves the bundle"):
+        resolve(Document.load(overlay))

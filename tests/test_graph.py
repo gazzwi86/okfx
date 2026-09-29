@@ -292,3 +292,18 @@ def test_the_cli_is_quiet_about_validators_a_bundle_never_declared(
     write(bundle / "a.md", "type: Policy")
     assert main(["graph", str(bundle), "-o", str(tmp_path / "g.html")]) == 0
     assert "not run" not in capsys.readouterr().out
+
+
+def test_an_unreadable_base_is_flagged_rather_than_aborting_the_page(bundle: Path, tmp_path: Path):
+    base = write(bundle / "base.md", "type: Policy", "# Scope\n\nAll.\n")
+    write(bundle / "over.md", "type: Policy\nextends: {concept: base}")
+    base.chmod(0o000)
+    try:
+        out = tmp_path / "g.html"
+        built = graph.generate(bundle, out)
+    finally:
+        base.chmod(0o644)
+    assert out.is_file(), "no page written at all"
+    by_id = {n["data"]["id"]: n["data"] for n in built["nodes"]}
+    assert by_id["over"]["failing"] is True
+    assert str(bundle.resolve()) not in out.read_text(encoding="utf-8")

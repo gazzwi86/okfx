@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "okfx"
-version = "0.3.1"
+version = "0.4.0"
 description = "Concept inheritance, content integrity and declarative validation for OKF v0.2 bundles"
 readme = "README.md"
 requires-python = ">=3.11"

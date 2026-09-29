@@ -231,6 +231,11 @@ change which base it derives from. `resource` follows the same path rules as eve
 other OKF field that names a file. Using both in one block is an error rather than a
 puzzle. Full rules: [`EXTENSION.md`](EXTENSION.md) §4.1.
 
+Either way, the base has to be **inside the bundle**. A reference that climbs out
+with `../` is refused, and so is a validator that does - which matters more, because
+a validator is executed. If a bundle genuinely shares a base with a sibling in the
+same repository, `--allow-outside-bundle` says so out loud; it is never the default.
+
 ### It is still ordinary OKF
 
 This matters more than it sounds. An OKF tool that has never heard of OKFX opens
@@ -433,7 +438,7 @@ sealed = seal(resolved)  # a resolved document can be sealed in turn
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/gazzwi86/okfx
-    rev: v0.3.1
+    rev: v0.4.0
     hooks:
       - id: okfx-check
 ```

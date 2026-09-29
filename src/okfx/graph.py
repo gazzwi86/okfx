@@ -57,6 +57,7 @@ def checks_for(
     *,
     allow_validators: bool,
     timeout: float,
+    allow_outside: bool = False,
 ) -> list[dict[str, str]]:
     """Everything `okfx check` would say about one document, as displayable rows.
 
@@ -115,7 +116,9 @@ def checks_for(
         rows.append(row("Validators", "skip", f"{len(declared)} declared, not run (opt in to run)"))
     else:
         try:
-            failures = validation.run(target, allow=True, timeout=timeout)
+            failures = validation.run(
+                target, allow=True, timeout=timeout, allow_outside=allow_outside
+            )
         except OKFXError as error:
             rows.append(row("Validators", "fail", error))
         else:
@@ -215,6 +218,7 @@ def build(
     *,
     allow_validators: bool = False,
     timeout: float = validation.DEFAULT_TIMEOUT,
+    allow_outside: bool = False,
 ) -> dict[str, Any]:
     """Build the graph payload for a bundle."""
     nodes: list[dict[str, Any]] = []
@@ -269,16 +273,22 @@ def build(
         error = ""
         merged: Document | None = None
         try:
-            merged = resolve(doc, root)
+            merged = resolve(doc, root, allow_outside=allow_outside)
             resolved = _view(merged.frontmatter, merged.body)
-        except OKFXError as failure:
+        except (OKFXError, OSError) as failure:
             # Any OKFX failure, not just ResolveError: a base with a broken seal
             # raises IntegrityError from inside the chain walk. A viewer that
             # refuses to draw a broken bundle is useless exactly when it matters.
             error, resolved = tidy(failure, root), raw
 
         checks = checks_for(
-            doc, merged, error, root, allow_validators=allow_validators, timeout=timeout
+            doc,
+            merged,
+            error,
+            root,
+            allow_validators=allow_validators,
+            timeout=timeout,
+            allow_outside=allow_outside,
         )
 
         block = None
@@ -366,9 +376,12 @@ def generate(
     *,
     allow_validators: bool = False,
     timeout: float = validation.DEFAULT_TIMEOUT,
+    allow_outside: bool = False,
 ) -> dict[str, Any]:
     """Write the viewer for `bundle` to `out_path`; return the graph payload."""
     root = bundle if bundle.is_dir() else bundle_root(bundle)
-    graph = build(root, allow_validators=allow_validators, timeout=timeout)
+    graph = build(
+        root, allow_validators=allow_validators, timeout=timeout, allow_outside=allow_outside
+    )
     out_path.write_text(render(graph), encoding="utf-8")
     return graph

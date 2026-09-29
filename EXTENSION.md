@@ -1,6 +1,6 @@
 # OKFX
 
-**Version 0.2. An extension to the Open Knowledge Format (OKF) v0.2.**
+**Version 0.3. An extension to the Open Knowledge Format (OKF) v0.2.**
 
 This is the version of the *specification below*, which is not the version of
 the `okfx` package that implements it. The package is released more often: a
@@ -33,6 +33,8 @@ carries no meaning a consumer must understand to read the file.
 
 An OKFX consumer:
 
+- MUST refuse an `extends` or `validation` reference that resolves outside the
+  bundle root, unless the caller has explicitly opted in (§4.1).
 - MUST accept both spellings of an `extends` target and resolve them
   differently: `concept` is always read from the bundle root, `resource` is
   relative to the overlay unless it begins with `/` (§4.1). Getting `concept`
@@ -175,6 +177,17 @@ a stable name for the base regardless of the overlay's location.
 Neither may be an absolute URL. Resolution reads the base's bytes in order to
 hash them, so a base must be a file in the bundle rather than something fetched
 over a network whose content can differ per read.
+
+Neither may leave the bundle either. A reference that resolves outside the bundle
+root - `../../elsewhere/base.md`, or `/../base.md` - MUST be refused. The bundle is
+the unit a consumer is pointed at, the unit CI runs over, and the unit every
+recorded digest describes; a document that can name any file on the host reaches
+outside all three. A consumer MAY offer an explicit opt-in for a bundle that
+deliberately shares a base with a sibling in the same repository, and OKFX's CLI
+spells that `--allow-outside-bundle`. It MUST NOT be the default.
+
+The same rule applies to `validation.resource` (§5.1), where the named file is
+executed rather than merely read.
 
 A document has at most one `extends`. Multiple inheritance is deliberately not
 supported (see [`docs/rationale.md`](docs/rationale.md)).
@@ -385,7 +398,7 @@ merge.
 
 ## 7. Versioning
 
-This document specifies OKFX version 0.2, targeting OKF v0.2. OKFX follows OKF's
+This document specifies OKFX version 0.3, targeting OKF v0.2. OKFX follows OKF's
 versioning scheme (OKF §12). There is no `okfx_version` declaration: OKF §8
 permits exactly one key in a root `index.md` frontmatter block, and OKFX will
 not spend a bundle's only conformance-sensitive slot on announcing itself. A

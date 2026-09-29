@@ -7,7 +7,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import graph, integrity, validation
+from . import __version__, graph, integrity, validation
 from .document import Document, OKFXError
 from .resolve import bundle_root, resolve
 
@@ -99,7 +99,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
 def _cmd_resolve(args: argparse.Namespace) -> int:
     path = Path(args.path)
-    resolved = resolve(Document.load(path))
+    resolved = resolve(Document.load(path), allow_outside=args.allow_outside_bundle)
     text = resolved.serialize()
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
@@ -112,8 +112,13 @@ def _cmd_resolve(args: argparse.Namespace) -> int:
 def _cmd_validate(args: argparse.Namespace) -> int:
     failures = 0
     for path in concept_paths([Path(p) for p in args.paths]):
-        doc = resolve(Document.load(path))
-        results = validation.run(doc, allow=args.allow_validators, timeout=args.timeout)
+        doc = resolve(Document.load(path), allow_outside=args.allow_outside_bundle)
+        results = validation.run(
+            doc,
+            allow=args.allow_validators,
+            timeout=args.timeout,
+            allow_outside=args.allow_outside_bundle,
+        )
         for failure in results:
             print(f"FAIL {path}: {failure}", file=sys.stderr)
         failures += len(results)
@@ -138,7 +143,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
             doc.validate_okf()
             if doc.frontmatter.get("integrity") is not None:
                 integrity.verify(doc)
-            resolved = resolve(doc, root=bundle_root(path))
+            resolved = resolve(doc, root=bundle_root(path), allow_outside=args.allow_outside_bundle)
             unrun = False
             if validation.declared(resolved) and not validation.allowed(args.allow_validators):
                 if args.skip_validators:
@@ -150,7 +155,10 @@ def _cmd_check(args: argparse.Namespace) -> int:
                     )
             else:
                 for failure in validation.run(
-                    resolved, allow=args.allow_validators, timeout=args.timeout
+                    resolved,
+                    allow=args.allow_validators,
+                    timeout=args.timeout,
+                    allow_outside=args.allow_outside_bundle,
                 ):
                     failures.append(f"{path}: {failure}")
         except OKFXError as e:
@@ -192,10 +200,19 @@ def _cmd_graph(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_outside_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--allow-outside-bundle",
+        action="store_true",
+        help="permit extends and validation to name files outside the bundle root",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="okfx", description="OKF extensions: integrity, extends, validation"
     )
+    parser.add_argument("--version", action="version", version=f"okfx {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     seal = sub.add_parser("seal", help="write an integrity seal onto documents")
@@ -216,12 +233,14 @@ def build_parser() -> argparse.ArgumentParser:
     res = sub.add_parser("resolve", help="resolve a document against its extends chain")
     res.add_argument("path")
     res.add_argument("-o", "--output")
+    _add_outside_flag(res)
     res.set_defaults(func=_cmd_resolve)
 
     val = sub.add_parser("validate", help="run declared validators over resolved documents")
     val.add_argument("paths", nargs="+")
     val.add_argument("--allow-validators", action="store_true", help="execute declared validators")
     val.add_argument("--timeout", type=float, default=validation.DEFAULT_TIMEOUT)
+    _add_outside_flag(val)
     val.set_defaults(func=_cmd_validate)
 
     check = sub.add_parser(
@@ -233,6 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-validators", action="store_true", help="report declared validators as unrun"
     )
     check.add_argument("--timeout", type=float, default=validation.DEFAULT_TIMEOUT)
+    _add_outside_flag(check)
     check.set_defaults(func=_cmd_check)
 
     viz = sub.add_parser("graph", help="write a self-contained interactive HTML view of a bundle")
@@ -244,6 +264,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="execute declared validators so the page can report pass or fail",
     )
     viz.add_argument("--timeout", type=float, default=validation.DEFAULT_TIMEOUT)
+    _add_outside_flag(viz)
     viz.set_defaults(func=_cmd_graph)
 
     return parser

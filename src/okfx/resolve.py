@@ -35,16 +35,51 @@ def bundle_root(path: Path) -> Path:
     return start
 
 
-def resolve_path(reference: str, doc_path: Path, root: Path) -> Path:
+def inside_bundle(target: Path, root: Path) -> bool:
+    """Whether `target` sits within the bundle root."""
+    try:
+        target.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _contained(target: Path, root: Path, field: str, reference: str, allow_outside: bool) -> Path:
+    """Refuse a reference that leaves the bundle, unless the caller opted in.
+
+    A bundle is the unit of trust: `okfx check` is pointed at one, CI runs it over
+    one, and every digest it records is of a file inside one. A `..` that walks out
+    makes a document able to name any local file - which matters most for
+    `validation`, where the named file is executed. The escape hatch exists for a
+    bundle that genuinely shares a base with a sibling in the same repository.
+    """
+    if allow_outside or inside_bundle(target, root):
+        return target
+    raise ResolveError(
+        f"{field} leaves the bundle: {reference} resolves outside {root}. "
+        "Pass --allow-outside-bundle if that is deliberate."
+    )
+
+
+def resolve_path(
+    reference: str,
+    doc_path: Path,
+    root: Path,
+    *,
+    field: str = "extends.resource",
+    allow_outside: bool = False,
+) -> Path:
     """Resolve a path-valued field per OKF v0.2 §6.2."""
     if "://" in reference:
-        raise ResolveError(f"{doc_path}: extends.resource must stay inside the bundle: {reference}")
+        raise ResolveError(f"{doc_path}: {field} must stay inside the bundle: {reference}")
     if reference.startswith("/"):
-        return (root / reference.lstrip("/")).resolve()
-    return (doc_path.parent / reference).resolve()
+        target = (root / reference.lstrip("/")).resolve()
+    else:
+        target = (doc_path.parent / reference).resolve()
+    return _contained(target, root, field, reference, allow_outside)
 
 
-def concept_path(concept: str, root: Path) -> Path:
+def concept_path(concept: str, root: Path, *, allow_outside: bool = False) -> Path:
     """Resolve an `extends.concept` id: bundle-relative, `.md` optional.
 
     `metrics/churn-rate`, `/metrics/churn-rate` and `metrics/churn-rate.md` all
@@ -57,15 +92,18 @@ def concept_path(concept: str, root: Path) -> Path:
     relative = concept.lstrip("/")
     if not relative.endswith(".md"):
         relative += ".md"
-    return (root / relative).resolve()
+    target = (root / relative).resolve()
+    return _contained(target, root, "extends.concept", concept, allow_outside)
 
 
-def base_path(block: dict[str, Any], doc_path: Path, root: Path) -> Path:
+def base_path(
+    block: dict[str, Any], doc_path: Path, root: Path, *, allow_outside: bool = False
+) -> Path:
     """The file an `extends` block points at, by either spelling."""
     concept = block.get("concept")
     if concept:
-        return concept_path(str(concept), root)
-    return resolve_path(str(block["resource"]), doc_path, root)
+        return concept_path(str(concept), root, allow_outside=allow_outside)
+    return resolve_path(str(block["resource"]), doc_path, root, allow_outside=allow_outside)
 
 
 def deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
@@ -93,7 +131,9 @@ def extends_of(doc: Document) -> dict[str, Any] | None:
     return block
 
 
-def chain(doc: Document, root: Path | None = None) -> list[Document]:
+def chain(
+    doc: Document, root: Path | None = None, *, allow_outside: bool = False
+) -> list[Document]:
     """Return the `extends` chain, furthest base first, ending with `doc`."""
     if doc.path is None:
         raise ResolveError("cannot resolve a document with no path")
@@ -107,7 +147,7 @@ def chain(doc: Document, root: Path | None = None) -> list[Document]:
         block = extends_of(current)
         if block is None:
             break
-        target = base_path(block, current_path, root)
+        target = base_path(block, current_path, root, allow_outside=allow_outside)
         if target in seen:
             trail = " -> ".join(p.name for p in [*seen, target])
             raise ResolveError(f"circular extends chain: {trail}")
@@ -133,9 +173,9 @@ def chain(doc: Document, root: Path | None = None) -> list[Document]:
     return documents
 
 
-def resolve(doc: Document, root: Path | None = None) -> Document:
+def resolve(doc: Document, root: Path | None = None, *, allow_outside: bool = False) -> Document:
     """Resolve `doc` against its `extends` chain and return the merged document."""
-    documents = chain(doc, root)
+    documents = chain(doc, root, allow_outside=allow_outside)
     if len(documents) == 1:
         return doc
 

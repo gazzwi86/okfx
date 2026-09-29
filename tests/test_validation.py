@@ -7,7 +7,7 @@ from conftest import write
 
 from okfx import validation
 from okfx.document import Document
-from okfx.resolve import resolve
+from okfx.resolve import ResolveError, resolve
 
 PASSING = "def validate(frontmatter, body):\n    return []\n"
 FAILING = "def validate(frontmatter, body):\n    return ['retention is too long']\n"
@@ -123,3 +123,17 @@ def test_the_example_validator_checks_currency_shape_not_an_allowlist(example_pr
         failures = validation.run(doc, allow=True)
         assert len(failures) == 1, refused
         assert "ISO 4217" in failures[0].message
+
+
+def test_a_validator_outside_the_bundle_is_refused(bundle: Path, tmp_path: Path):
+    """Validators are executed, so this is the escape that matters most."""
+    (tmp_path.parent / "evil.py").write_text("def validate(f, b):\n    return []\n", "utf-8")
+    doc = Document.load(
+        write(
+            bundle / "a.md",
+            "type: Policy\nvalidation:\n  - resource: ../evil.py\n    description: X.",
+        )
+    )
+    with pytest.raises(ResolveError, match="leaves the bundle"):
+        validation.run(doc, allow=True)
+    assert validation.run(doc, allow=True, allow_outside=True) == []
