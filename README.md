@@ -70,6 +70,13 @@ That is one self-contained HTML file. It works offline, from a `file://` URL,
 with nothing fetched from the network. Toggle **As written / Resolved** to watch
 the overlay gain everything it inherits.
 
+Worth being precise about what needs installing, since "nothing to install" is
+easy to overclaim. *Reading* an OKF or OKFX bundle needs nothing: the files are
+markdown, and an agent or a text editor handles them with no tooling at all.
+*Resolving* a chain and *drawing* the graph is what this CLI is for. It is a
+convenience over the format, not a runtime the format depends on - which is why a
+stock consumer that has never heard of OKFX still reads every file in the bundle.
+
 Then confirm the whole thing actually works on your machine:
 
 ```shell
