@@ -1,7 +1,7 @@
 {
   "name": "okfx",
   "displayName": "OKFX",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Author and check OKF bundles that use inheritance (extends), integrity seals, and declarative validation.",
   "author": {
     "name": "Gareth Williams",

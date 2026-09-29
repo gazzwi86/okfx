@@ -2,6 +2,12 @@
 
 **Version 0.2. An extension to the Open Knowledge Format (OKF) v0.2.**
 
+This is the version of the *specification below*, which is not the version of
+the `okfx` package that implements it. The package is released more often: a
+fix, a new command or a better example changes the tool without changing what
+a conforming document or consumer must do. When these families change, this
+number moves and §7 says how.
+
 OKFX adds three optional frontmatter families to OKF: `integrity` (content
 sealing), `extends` with `target_context` (concept inheritance) and `validation`
 (declarative, deterministic checks). It adds no required fields, no reserved
