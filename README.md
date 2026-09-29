@@ -9,33 +9,69 @@ OKFX is a small extension to
 YAML frontmatter. It is an independent project: not a Google project, not
 endorsed by Google, and not part of the OKF specification. See [`NOTICE`](NOTICE).
 
-## The problem
+## What this is, in plain terms
 
-The same rule usually exists three times. A company policy nobody has read, a
-domain-level interpretation of it nobody has read either, and a project that
-quietly writes its own. All three are true. All three sit in the bundle at once.
+OKF is Google Cloud's way of writing down organisational knowledge as ordinary
+markdown files. Each file gets a small block of metadata at the top, between two
+`---` lines - that block is called *frontmatter*, and it is where the file says what
+it is, who wrote it, who checked it and what it was derived from.
 
-Hand all three to an agent and it answers from whichever one scored best on
-retrieval, because nothing in the file says which one governs. The usual fix is
-to flatten them into one self-contained document per project, which copies the
-company policy into every project and guarantees the copies drift.
+That is the whole format. No database, no server, no API.
 
-OKFX adds one frontmatter key that states the precedence, so resolving it is
-mechanical rather than a judgement made at retrieval time.
+What OKF has no answer for is one document being a **version of** another. OKFX adds
+that, in one optional key.
+
+### The five words this README uses
+
+| Word | Means |
+|------|-------|
+| **concept** | One markdown file describing one thing. A policy, a metric, a playbook. |
+| **bundle** | A folder of concepts. What makes a folder a bundle is an `index.md` at its root. |
+| **base** | A concept that another one derives from. Nothing special about it - it does not know it is a base. |
+| **overlay** | A concept that says "I am the EU version of that one", and then only states what differs. |
+| **resolve** | Merge an overlay with its base (and its base's base) to get the one complete document they add up to. |
+
+An overlay is a normal, readable concept on its own. Resolving is something a tool
+does on request; it never rewrites your files.
+
+## The problem it solves
+
+Take one rule: how long you keep customer records.
+
+It exists three times. The company policy says seven years. Finance wrote its own
+interpretation, because its regulator wants a longer audit trail. The billing
+project wrote a third version, because it needed a settlement window nobody else
+cares about.
+
+All three are true. All three sit in the folder at the same time.
+
+Now ask an AI assistant "how long do we keep customer records?" It finds three
+documents that disagree and picks whichever one best matched your wording. Nothing
+in any of the files says which one wins.
+
+The usual fix is to copy the company policy into each project's document so each is
+self-contained. That works for about a month, until the company policy changes and
+nobody knows which copies are stale.
+
+OKFX's answer is one line of metadata: *this document is a version of that one*. The
+project states its one difference, inherits the rest, and a tool - not a guess -
+works out the complete answer. If the company policy later changes, every document
+derived from it fails its check until a human has looked.
 
 ## Sixty seconds
 
-**Prerequisites.** Python 3.11 or newer, and [uv](https://docs.astral.sh/uv/)
-(`curl -LsSf https://astral.sh/uv/install.sh | sh`, or `brew install uv`). `uvx`
-ships with uv and runs a command without installing it, in a throwaway
-environment - so nothing below leaves anything behind on your machine.
+**You need** Python 3.11+ and [uv](https://docs.astral.sh/uv/). If you do not have
+uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`, or `brew install uv`.
+
+`uvx` comes with uv. It runs a command in a throwaway environment, so nothing below
+installs anything permanently.
 
 ```shell
 git clone https://github.com/gazzwi86/okfx && cd okfx
 uvx --from . okfx resolve examples/acme/metrics/churn-rate.eu.md
 ```
 
-The file you just resolved is this whole thing:
+You just resolved this file. It is the whole thing - fourteen lines:
 
 ```yaml
 ---
@@ -54,108 +90,161 @@ Cancellations above the EU threshold go to the Dublin Finance desk within 72
 hours, per local reporting obligations.
 ```
 
-What comes back is the whole metric: the title, description, tags, status and
-trust signals from the base, the base's `# Definition` section, the currency
-resolved to `EUR`, the threshold to `5000`, and the `# Audit` section appended.
-Nothing was copied to make that happen.
+What came back is a complete metric. `extends` pointed at a base document, so the
+title, description, tags, status, trust signals and the base's whole `# Definition`
+section were merged in. The two values this file *does* state won: `EUR` and
+`5000`. Its `# Audit` section was added on the end, because the base has no section
+by that name.
 
-Then look at the bundle as a graph:
+Nothing was copied to make that happen, and the base was not modified.
+
+## See the bundle as a picture
 
 ```shell
 uvx --from . okfx graph examples/acme -o graph.html
 open graph.html      # macOS; xdg-open on Linux, start on Windows
 ```
 
-That is one self-contained HTML file. It works offline, from a `file://` URL,
-with nothing fetched from the network.
+One self-contained HTML file that works offline, with nothing fetched from the
+network. Blue arrows are `extends` - which document derives from which.
 
-Click a concept and the panel shows what the CLI would tell you about it:
+Click any concept and you get:
 
-- A **Checks** list - OKF conformance, the integrity seal, the base and its pin,
-  and the validators - each marked pass, fail or not-applicable, with the reason.
-  A concept with a failing check is drawn red in the graph.
-- The **whole document**, frontmatter and all, under *Show the merged file*. In the
-  **Resolved** state that is the file the base and every overlay add up to, which
-  is the one thing you cannot see by opening any single file in an editor.
+- **Checks** - is the document valid OKF, does its seal still match, does its base
+  resolve and match the pinned digest, do its validators pass. Each marked pass,
+  fail or not-applicable, with the reason. A concept with a failing check is drawn
+  red.
+- **Whole document** - the full file, frontmatter included. Switch to **Resolved**
+  and it becomes the merged file: base plus every overlay, all the way down. That
+  file exists nowhere on disk, which is exactly why it is worth being able to look
+  at.
 
-Toggle **As written / Resolved** to watch a fourteen-line overlay become a
-complete metric.
-
-Validators are only executed if you ask, since they are code from the bundle:
+Validators are code the bundle ships, so they only run if you ask:
 
 ```shell
 uvx --from . okfx graph examples/acme -o graph.html --allow-validators
 ```
 
-Without that flag the page reports them as declared but not run, which is the same
-posture `okfx check` takes.
+Without the flag the page says "declared, not run" rather than implying a pass -
+the same posture `okfx check` takes.
 
-Worth being precise about what needs installing, since "nothing to install" is
-easy to overclaim. *Reading* an OKF or OKFX bundle needs nothing: the files are
-markdown, and an agent or a text editor handles them with no tooling at all.
-*Resolving* a chain and *drawing* the graph is what this CLI is for. It is a
-convenience over the format, not a runtime the format depends on - which is why a
-stock consumer that has never heard of OKFX still reads every file in the bundle.
+### Do you actually need this CLI?
 
-Then confirm the whole thing actually works on your machine:
+For reading a bundle, no. The files are markdown with a metadata header; an editor,
+an agent or `cat` handles them with no tooling at all, and that is the point of the
+format.
+
+You need this CLI for the two things a plain reader cannot do: *resolving* a chain
+into one merged document, and *drawing* the graph. It is a convenience on top of
+the format, not a runtime the format depends on. That is why a stock OKF consumer
+that has never heard of OKFX still reads every file in the bundle without error.
+
+## Check it works on your machine
 
 ```shell
 uv sync
 uv run pytest
 ```
 
-Expect `101 passed, 1 skipped` - the count grows as tests are added, so what
-matters is zero failures. The skip is the OKF conformance suite, which needs
-Google's reference implementation; it is optional, and
-[`CONTRIBUTING.md`](CONTRIBUTING.md) says how to install it.
+Expect `111 passed, 1 skipped`. The count grows as tests are added, so what matters
+is zero failures. The skip is the OKF conformance suite, which needs Google's
+reference implementation - optional, and [`CONTRIBUTING.md`](CONTRIBUTING.md) says
+how to install it.
 
-**Next:** [`docs/try-it.md`](docs/try-it.md) is a fifteen-minute guided tour that
-has you change an inherited value, add a third region, break a pin on purpose and
-watch the build fail. Do that before deciding whether this is useful to you.
+## Then do the tour
+
+[`docs/try-it.md`](docs/try-it.md) is a guided fifteen minutes: change a value on a
+base and watch it reach four documents, add a region of your own, break a pin on
+purpose and watch the build refuse it, and see a validator reject a document that
+never mentioned the rule. Every command in it has been run.
+
+Do that before deciding whether any of this is useful to you.
 
 ## How the merge works
 
-Frontmatter deep-merges with the overlay winning. Mappings merge key by key;
-scalars and lists replace wholesale.
+Two rules, and they are worth learning because everything else follows from them.
 
-Bodies merge by heading:
+### Rule 1: the metadata merges key by key, and the overlay wins
 
-- A heading the base also has **replaces** the base's version, in the base's
-  position.
-- A heading the base lacks is **appended**.
-- A heading the overlay says nothing about is **kept** as the base wrote it.
+```yaml
+# base: metrics/churn-rate.md          # overlay: metrics/churn-rate.eu.md
+title: Churn Rate                      (says nothing about title)
+tags: [billing, retention, kpi]        (says nothing about tags)
+rules:                                 rules:
+  currency_default: USD                  currency_default: EUR
+  audit_threshold: 10000                 audit_threshold: 5000
+```
 
-Headings match on level and text, ignoring case and extra whitespace. A `#` line
-inside a fenced code block is not a heading, so a shell example never opens a
-section.
+Resolved: `title` and `tags` come from the base untouched. `rules` is a nested
+block, so it is merged one key at a time - both values come from the overlay
+because the overlay named both.
 
-Chains go as deep as you like. The example bundle is three levels: the metric, an
-EU overlay, and a billing project inside it.
+Had the overlay set only `currency_default`, the resolved `audit_threshold` would
+still be the base's `10000`.
+
+One exception worth knowing: **lists replace, they do not combine.** An overlay
+that wants the base's three tags plus one more writes all four. Half-inherited
+lists mean neither file tells you what the list contains.
+
+### Rule 2: the prose merges by heading
+
+Each `#` heading is a section. For each section in the overlay:
+
+- **Same heading as the base** → the overlay's version replaces it, in the base's
+  original position.
+- **Heading the base does not have** → added on the end.
+- **Heading the overlay never mentions** → the base's version is kept as written.
+
+So the EU overlay's `# Audit` was appended, and the base's `# Definition` came
+through untouched, because the overlay never mentioned it.
+
+Headings match on level and text, ignoring capitals and extra spaces - `# Retention`
+matches `#  retention`, but not `## Retention`. A `#` inside a fenced code block is
+a comment, not a heading, so a shell example never accidentally starts a section.
+
+Replacement is wholesale: an overlay that wants to keep one of the base's paragraphs
+restates it.
+
+### Chains
+
+An overlay can itself be a base for something else. The example bundle is three
+deep: the metric, its EU overlay, and a billing project inside that. Each level
+states only its own difference.
 
 ### Naming the base
 
+Two spellings, and you pick one:
+
 ```yaml
 extends:
-  concept: metrics/churn-rate       # a concept id, read from the bundle root
+  concept: metrics/churn-rate          # a name, counted from the bundle root
 ```
 
 ```yaml
 extends:
-  resource: ../metrics/churn-rate.md   # a path, per OKF §6.2
+  resource: ../metrics/churn-rate.md   # a file path, relative to this file
 ```
 
-Use exactly one. `concept` is resolved from the bundle root with `.md` optional,
-so moving an overlay between directories cannot change which base it derives
-from. `resource` follows the relative-path rules every other OKF path field
-follows. Full rules in [`EXTENSION.md`](EXTENSION.md) §4.1.
+`concept` is usually what you want. It is read from the top of the bundle and the
+`.md` is optional, so moving the overlay into a different folder cannot silently
+change which base it derives from. `resource` follows the same path rules as every
+other OKF field that names a file. Using both in one block is an error rather than a
+puzzle. Full rules: [`EXTENSION.md`](EXTENSION.md) §4.1.
 
-### Still valid OKF
+### It is still ordinary OKF
 
-A stock OKF consumer reads an OKFX bundle without error and ignores the keys it
-does not know, because OKF §4.1 and §11 require exactly that. It sees the overlay
-unresolved - a complete, readable concept in its own right - rather than a broken
-one. The test suite asserts this by running the OKF reference implementation's own
-loader over the example bundle, and by round-tripping every document through it.
+This matters more than it sounds. An OKF tool that has never heard of OKFX opens
+these files, reads them fine, and ignores the keys it does not recognise - because
+the OKF spec requires exactly that (§4.1 permits any extra key, §11 forbids
+rejecting a document for having one).
+
+Such a tool sees the overlay *unresolved*: the fourteen lines as written, which is a
+truthful, readable concept in its own right. Narrower than the merged version, not
+broken by it.
+
+This is not a hopeful claim. The test suite runs Google's own OKF parser over the
+example bundle and checks every document both loads and survives a round trip
+unchanged. If that ever stopped being true, the build would fail.
 
 ## The example bundle
 
@@ -206,29 +295,48 @@ this bundle's own convention; and **OKFX does not execute attesters**. `okfx
 validate` runs the separate `validation` family. `tests/test_example_attester.py`
 exercises the attester directly, including the agent-wrote-its-own-query case.
 
-## What else is in here
+## Two more things it can do
 
-Two more optional families, both specified in [`EXTENSION.md`](EXTENSION.md).
-Neither is needed to use `extends`.
+Both optional, both specified in [`EXTENSION.md`](EXTENSION.md). You can use
+`extends` and ignore both.
 
-**`integrity`** - a SHA-256 seal over a canonical form of the document.
-Reordering frontmatter keys, re-indenting, or changing line endings does not
-break a seal. Changing a value or a word of prose does. Core OKF has no digest of
-any kind: `verified` records who reviewed a document, and stays true-looking after
-someone edits it.
+### `integrity` - a fingerprint that notices edits
 
-Its point is `extends.integrity`, which pins the base an overlay was written
-against. The pin is checked against a hash **recomputed from the base's bytes**,
-never against the base's own claim about itself - because anyone who can edit a
-base can also update the claim inside it. So editing a base fails the build in
-every project that derives from it, instead of silently changing what those
-projects mean.
+A fingerprint (a SHA-256 hash) of the document's content, stored inside the
+document itself. Change a value or a single word of prose and it stops matching.
 
-**`validation`** - deterministic Python checks a document declares, which run
-against the *resolved* document, so an overlay cannot evade a rule its base
-declares. This generalises OKF §10's `attester`, which checks one receipt from
-one sanctioned computation; a validator checks a document of any type. Read
-[validators are code](#validators-are-code) before running any.
+Reformat the file, though - reorder the metadata keys, re-indent a nested block,
+switch line endings on a Windows checkout - and it still matches, because the
+fingerprint is taken of what the document *means*, not of its raw bytes. Rewrapping
+a paragraph does break it, because moving words between lines changes the text and
+no tool can tell an author reflowing prose from an agent rewriting it.
+
+Core OKF has no fingerprint of any kind. Its `verified` key records that a human
+reviewed a document, and goes on saying so after somebody edits it.
+
+**Why it exists:** `extends.integrity`. An overlay records the fingerprint of the
+exact base it was written against. When resolving, the fingerprint is **recomputed
+from the base's current bytes** - it is never compared against the fingerprint the
+base claims about itself, because anyone who can edit a base can edit that claim
+too.
+
+The effect: edit a base, and every document derived from it fails its check until a
+human has looked and re-recorded the fingerprint. That is the feature, not friction.
+It turns "somebody changed the policy your project inherits" from something you find
+out months later into a failed build.
+
+### `validation` - rules that travel with the document
+
+A document can name deterministic Python checks - no network, no clock, no AI call -
+that must pass. They run against the **resolved** document, which is what makes them
+worth having: a rule declared on a company policy applies to every overlay beneath
+it, and an overlay cannot escape it by staying quiet.
+
+OKF §10 has a narrower relative called an `attester`, which checks one result from
+one sanctioned calculation. A validator checks a whole document of any kind.
+
+Validators are code from the bundle, so they never run unless you ask. Read
+[validators are code](#validators-are-code) before you do.
 
 ## What this is for
 

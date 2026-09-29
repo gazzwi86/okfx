@@ -22,7 +22,7 @@ uv sync
 uv run pytest
 ```
 
-`101 passed, 1 skipped`. The count grows as tests are added; zero failures is the
+`111 passed, 1 skipped`. The count grows as tests are added; zero failures is the
 thing to look for. The skip is the OKF conformance suite, which needs Google's
 reference implementation - optional, and
 [`CONTRIBUTING.md`](../CONTRIBUTING.md) covers it.
@@ -293,7 +293,7 @@ uv pip install --no-deps "reference-agent @ git+https://github.com/GoogleCloudPl
 OKFX_REQUIRE_REFERENCE=1 uv run pytest -q
 ```
 
-`106 passed`, with nothing skipped. The previously-skipped suite now runs, parsing
+`116 passed`, with nothing skipped. The previously-skipped suite now runs, parsing
 every document in the example bundle with the reference implementation and
 round-tripping each one through it unchanged.
 

@@ -254,3 +254,41 @@ def test_the_page_carries_no_local_filesystem_paths(bundle: Path, tmp_path: Path
     node = next(n["data"] for n in graph.build(bundle)["nodes"])
     assert "does not exist" in node["error"]
     assert str(bundle.resolve()) not in node["error"]
+
+
+def test_a_relative_bundle_path_does_not_leak_absolute_paths(monkeypatch, tmp_path: Path):
+    """The documented invocation is relative (`okfx graph examples/acme`)."""
+    write(tmp_path / "index.md", "okf_version: '0.2'")
+    write(tmp_path / "broken.md", "type: Policy\nextends: {concept: missing-base}")
+    monkeypatch.chdir(tmp_path.parent)
+    for _ in range(12):  # set iteration order used to make this pass intermittently
+        node = next(n["data"] for n in graph.build(Path(tmp_path.name))["nodes"])
+        assert str(tmp_path.resolve()) not in node["error"], node["error"]
+        assert node["error"].startswith("broken.md")
+
+
+def test_an_unparseable_document_is_flagged_and_still_shows_its_bytes(bundle: Path):
+    (bundle / "bad.md").write_text("---\ntype: [unclosed\n---\n\n# Body\n", encoding="utf-8")
+    node = next(n["data"] for n in graph.build(bundle)["nodes"] if n["data"]["id"] == "bad")
+    assert node["failing"] is True
+    assert states(node) == {"Parse": "fail"}
+    assert "unclosed" in node["raw"]["body"]
+
+
+def test_a_malformed_extends_block_is_reported_not_called_a_base(bundle: Path):
+    write(bundle / "a.md", "type: Policy\nextends: base.md")
+    write(bundle / "b.md", "type: Policy\nextends: {concept: a, resource: /a.md}")
+    by_id = {n["data"]["id"]: n["data"] for n in graph.build(bundle)["nodes"]}
+    for node_id, expected in (("a", "must be a mapping"), ("b", "both concept and resource")):
+        base_row = next(c for c in by_id[node_id]["checks"] if c["name"] == "Base")
+        assert base_row["state"] == "fail", node_id
+        assert expected in base_row["detail"]
+        assert by_id[node_id]["failing"] is True
+
+
+def test_the_cli_is_quiet_about_validators_a_bundle_never_declared(
+    bundle: Path, tmp_path: Path, capsys
+):
+    write(bundle / "a.md", "type: Policy")
+    assert main(["graph", str(bundle), "-o", str(tmp_path / "g.html")]) == 0
+    assert "not run" not in capsys.readouterr().out

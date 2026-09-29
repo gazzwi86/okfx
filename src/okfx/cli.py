@@ -175,7 +175,12 @@ def _cmd_graph(args: argparse.Namespace) -> int:
     print(
         f"{out_path}: {len(result['nodes'])} concepts, {len(result['edges'])} edges, {size_kb} KB"
     )
-    if not allow:
+    withheld = any(
+        check["name"] == "Validators" and "not run" in check["detail"]
+        for node in result["nodes"]
+        for check in node["data"]["checks"]
+    )
+    if withheld:
         print("     validators shown as declared but not run; --allow-validators executes them")
     failed = [
         node["data"]["id"]

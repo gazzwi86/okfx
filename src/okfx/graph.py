@@ -40,7 +40,11 @@ def tidy(message: object, root: Path) -> str:
     needs to be, and tells the recipient nothing they can act on.
     """
     text = str(message)
-    for prefix in {str(root.resolve()), str(root)}:
+    # Longest first, and deterministically: `root` may be relative while the
+    # message holds absolute paths. Stripping the shorter prefix first rewrites
+    # the middle of a path and leaves the absolute head behind, which is a leak
+    # that only shows up on some runs because set order is not defined.
+    for prefix in sorted({str(root.resolve()), str(root)}, key=len, reverse=True):
         text = text.replace(prefix + "/", "").replace(prefix, root.name)
     return text
 
@@ -81,11 +85,17 @@ def checks_for(
             rows.append(row("Integrity seal", "fail", error))
 
     block = None
+    malformed = ""
     try:
         block = extends_of(doc)
-    except ResolveError:
-        pass
-    if block is None:
+    except ResolveError as error:
+        # A block that names neither spelling, or both, or is not a mapping. Left
+        # unreported this row would claim "no extends" about a document that
+        # plainly declares one, which is worse than saying nothing.
+        malformed = str(error)
+    if malformed:
+        rows.append(row("Base", "fail", malformed))
+    elif block is None:
         rows.append(row("Base", "skip", "no extends: this is a base"))
     elif resolve_error:
         rows.append(row("Base", "fail", resolve_error))
@@ -233,14 +243,23 @@ def build(
         try:
             doc = Document.load(path)
         except (DocumentError, OSError) as error:
+            # Still show the bytes: a file that will not parse is exactly the one
+            # whose contents the reader needs to see. It has no frontmatter to
+            # speak of, so the whole file goes in as body text.
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = ""
+            unparseable = _view({}, text)
             nodes.append(
                 {
                     "data": {
                         "id": node_id,
                         "error": tidy(error, root),
                         "checks": [_check("Parse", "fail", tidy(error, root))],
-                        "raw": _view({}, ""),
-                        "resolved": _view({}, ""),
+                        "failing": True,
+                        "raw": unparseable,
+                        "resolved": unparseable,
                     }
                 }
             )
